@@ -1,0 +1,13 @@
+name: With Context Output
+outputs:
+  event-name:
+    description: The event name from context
+    value: ${{ github.event_name }}
+  no-value:
+    description: An output with no value expression
+runs:
+  using: composite
+  steps:
+    - id: step1
+      shell: bash
+      run: echo "done"

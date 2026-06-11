@@ -1,25 +1,25 @@
-# `@actspec/core`
+# `@actharness/core`
 
-The hub. Owns the public entry, the execution contract, and everything shared: parsing, context, the runner protocol, mocking, the executor registry, the single-action runner, result building, errors, and determinism. Every other package depends on it; it depends only on `@actspec/expressions`.
+The hub. Owns the public entry, the execution contract, and everything shared: parsing, context, the runner protocol, mocking, the executor registry, the single-action runner, result building, errors, and determinism. Every other package depends on it; it depends only on `@actharness/expressions`.
 
 ## Owns (public types)
-The consumer-facing surface in [API.md](../../docs/API.md): `actspec()` (§1), `Action` (§2), `RunInput` (§3), `RunResult`/`StepResult`/`Annotation` (§4), `ActionMock`/`ActionMockDef`/`ActionMockImpl` (§5), `ActspecOptions`/`Determinism` (§1), and the error hierarchy (§13). Plus the internal seam (from [ARCHITECTURE](../../docs/ARCHITECTURE.md)): `ActionExecutor`, `ExecutionCall`, `ExecutionResult`, `ContextStore`, `RunnerProtocol`, `MockResolver`, `SandboxFactory`.
+The consumer-facing surface in [API.md](../../docs/API.md): `actharness()` (§1), `Action` (§2), `RunInput` (§3), `RunResult`/`StepResult`/`Annotation` (§4), `ActionMock`/`ActionMockDef`/`ActionMockImpl` (§5), `ActharnessOptions`/`Determinism` (§1), and the error hierarchy (§13). Plus the internal seam (from [ARCHITECTURE](../../docs/ARCHITECTURE.md)): `ActionExecutor`, `ExecutionCall`, `ExecutionResult`, `ContextStore`, `RunnerProtocol`, `MockResolver`, `SandboxFactory`.
 
 These types are the contract — match them exactly; do not re-shape.
 
 ## Depends on
-`@actspec/expressions` and `@actspec/types`. **No other `@actspec/*` import** (executors/sandboxes register *into* core; coverage/matchers/fixtures depend *on* core). Types defined in `@actspec/types` are re-exported from `@actspec/core` so consumers import from either.
+`@actharness/expressions` and `@actharness/types`. **No other `@actharness/*` import** (executors/sandboxes register *into* core; coverage/matchers/fixtures depend *on* core). Types defined in `@actharness/types` are re-exported from `@actharness/core` so consumers import from either.
 
 ## Behavior (MUST)
-1. **Parse** `action.yml`/`action.yaml` (or dir/inline/manifest) for **all** `using:` kinds (so errors are good), but in v0.1 only **dispatch** `composite`; unknown/other `using:` → a clear `ParseError`/`ActspecError` ("node actions land in v0.2"). Carry `file:line:col` on every parse error, and **preserve `line:col` ranges on every node** (steps, `if:`, `with:`, `outputs`) — diagnostics and coverage both consume them. Default parser: **`yaml` (eemeli)**, whose CST exposes node ranges (js-yaml doesn't).
+1. **Parse** `action.yml`/`action.yaml` (or dir/inline/manifest) for **all** `using:` kinds (so errors are good), but in v0.1 only **dispatch** `composite`; unknown/other `using:` → a clear `ParseError`/`ActharnessError` ("node actions land in v0.2"). Carry `file:line:col` on every parse error, and **preserve `line:col` ranges on every node** (steps, `if:`, `with:`, `outputs`) — diagnostics and coverage both consume them. Default parser: **`yaml` (eemeli)**, whose CST exposes node ranges (js-yaml doesn't).
 2. **Build context** — merge user `github`/`env`/`runner`/`secrets`/`matrix`/`eventPayload` over fixture defaults; expose the read-only `ContextStore` keyed by context name. Serialize `eventPayload` to `event.json` in the workspace and set `GITHUB_EVENT_PATH` to that path — matching `github.event_path` — so `run:` steps that `cat $GITHUB_EVENT_PATH` work.
 3. **Resolve inputs** — apply `default:`, coerce to string, and populate `INPUT_<NAME>` with the exact transform (uppercase, spaces→`_`) from [EXPRESSIONS/Fidelity](../../docs/ARCHITECTURE.md#fidelity--semantics). Missing `required` input → warning annotation, not a throw.
-4. **Dispatch** to the `ActionExecutor` whose `handles(using)` matches, via the registry; build the `ExecutionCall`; shape its `ExecutionResult` into the public `RunResult`, **source-stamped** and recording every `if:` outcome (the coverage invariant). Then notify the **run-observation sink** — a process-global listener registry (`registerRunListener`, keyed `globalThis[Symbol.for('actspec.runSink')]`) — with the finished `RunResult`, so `@actspec/coverage` subscribes **without core depending on it**.
+4. **Dispatch** to the `ActionExecutor` whose `handles(using)` matches, via the registry; build the `ExecutionCall`; shape its `ExecutionResult` into the public `RunResult`, **source-stamped** and recording every `if:` outcome (the coverage invariant). Then notify the **run-observation sink** — a process-global listener registry (`registerRunListener`, keyed `globalThis[Symbol.for('actharness.runSink')]`) — with the finished `RunResult`, so `@actharness/coverage` subscribes **without core depending on it**.
 5. **`RunnerProtocol`** — allocate per-invocation temp files for `GITHUB_{OUTPUT,ENV,PATH,STATE,STEP_SUMMARY}` and parse the file formats + stdout workflow commands **exactly** per the grounded spec — **[docs/PROTOCOL.md](../../docs/PROTOCOL.md)** (the binding contract: escaping with `%25` decoded last, the `ghadelimiter_` heredoc + CVE guard, `stop-commands`, the full command set). Gate: green on [corpus/protocol](../../corpus/protocol/).
 6. **`MockResolver`** — per-`Action` registry (never global). Resolution order: explicit `mock(ref)` > per-ref policy > default policy. Default = **local-vs-remote** (`./`,`../` → `real` recurse; remote → `noop` + warning). `real` resolves local paths only; a remote ref set to `real` is a config error. Enforce cycle detection + a max-depth limit (default 50, configurable; [D36](../../docs/DECISIONS.md#d36--mockresolver-recursion-guard)).
 7. **Determinism** — a `Clock`/`Rng`/id source injected through the call; frozen by default (fixed epoch, seeded RNG, stable `GITHUB_RUN_ID`/`RUNNER_TEMP`/workspace). Nothing in core or downstream may call `Date.now`/`Math.random`/`randomUUID` directly.
 8. **Workspace** — one shared `GITHUB_WORKSPACE` temp dir per **top-level** `run()`, reused by nested local `uses: ./child`; auto-removed unless `keepWorkspace`. Env-files (`GITHUB_{OUTPUT,ENV,PATH,STATE,STEP_SUMMARY}`) are allocated **fresh per step**; `$GITHUB_ENV`/`$GITHUB_PATH` accumulate forward for later steps, `$GITHUB_OUTPUT` is per-step → `steps.<id>.outputs`.
-9. **Mocks as spies** — `ActionMock.calls` mirrors the jest/vitest `mock.calls` shape so native spy matchers also work.
+9. **Mocks as spies** — `ActionMock.calls` is an array of invocation records usable with actharness's matchers or directly.
 
 ## Acceptance
 Fixtures under `packages/core/test/fixtures/`:
@@ -32,4 +32,4 @@ Fixtures under `packages/core/test/fixtures/`:
 - A registered fake `ActionExecutor` is dispatched on its `handles()` and its `ExecutionResult` becomes a well-formed `RunResult` (source-stamped, `if:` outcomes present).
 
 ## Done-when
-Per [CONVENTIONS DoD](../../docs/CONVENTIONS.md#definition-of-done-every-module): public types equal API.md; acceptance green; no `@actspec/*` deps beyond `expressions`; determinism routed through injected sources (lint-enforced ban on `Date.now`/`Math.random`/`randomUUID`).
+Per [CONVENTIONS DoD](../../docs/CONVENTIONS.md#definition-of-done-every-module): public types equal API.md; acceptance green; no `@actharness/*` deps beyond `expressions`; determinism routed through injected sources (lint-enforced ban on `Date.now`/`Math.random`/`randomUUID`).

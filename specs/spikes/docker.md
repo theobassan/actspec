@@ -1,6 +1,6 @@
-# Spike — Docker container sandbox (`@actspec/docker`)
+# Spike — Docker container sandbox (`@actharness/docker`)
 
-> **POC spike — proves the `ContainerSandbox` design before `@actspec/docker` is built.** Runs a set of real docker action scenarios through a minimal docker `ActionExecutor` wired on top of the workflow spike machinery. The spike validates protocol file mounting, all three image sources, content-hash caching, `args:`/`entrypoint:` wiring, and the pre-entrypoint/post-entrypoint lifecycle. The spike's `ContainerSandbox` implementation becomes the starting point for `@actspec/docker`.
+> **POC spike — proves the `ContainerSandbox` design before `@actharness/docker` is built.** Runs a set of real docker action scenarios through a minimal docker `ActionExecutor` wired on top of the workflow spike machinery. The spike validates protocol file mounting, all three image sources, content-hash caching, `args:`/`entrypoint:` wiring, and the pre-entrypoint/post-entrypoint lifecycle. The spike's `ContainerSandbox` implementation becomes the starting point for `@actharness/docker`.
 >
 > **COMPLETE — 21/21 tests pass.** All five scenarios (A–E) green against a real Docker daemon (v23.0.6, macOS). H1–H8 all confirmed. No design changes needed. See [docker-findings.md](docker-findings.md) for full outcomes.
 
@@ -8,7 +8,7 @@
 
 v0.3 adds the `ContainerSandbox` — the part of the runtime that builds/pulls/runs Docker images, mounts protocol files, and threads the lifecycle. [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) describes the design; [v0.3.md](../versions/v0.3.md) explicitly calls for a spike before committing:
 
-> *"No dedicated container spike exists yet. When v0.3 is scheduled, run a spike in `spike/docker/` before committing to the `ContainerSandbox` design — then evolve that spike code into `@actspec/docker`. Do not design from scratch at implementation time."*
+> *"No dedicated container spike exists yet. When v0.3 is scheduled, run a spike in `spike/docker/` before committing to the `ContainerSandbox` design — then evolve that spike code into `@actharness/docker`. Do not design from scratch at implementation time."*
 
 The docker executor rests on four unproven bets:
 
@@ -20,7 +20,7 @@ The docker executor rests on four unproven bets:
 
 **4. pre-entrypoint / post-entrypoint lifecycle.** A docker action's `pre-entrypoint:` and `post-entrypoint:` fields mirror the JS action's pre/main/post phases: they run before and after the main `entrypoint:`, thread `GITHUB_STATE` between them, and produce `StepResult`s with the correct `phase` discriminator. This has never been run.
 
-Building `@actspec/docker` on unvalidated assumptions about any of these would mean discovering the hard cases after a full package — executor, sandbox backends, content-hash cache, three image sources, lifecycle — all exists. The spike catches them cheaply first.
+Building `@actharness/docker` on unvalidated assumptions about any of these would mean discovering the hard cases after a full package — executor, sandbox backends, content-hash cache, three image sources, lifecycle — all exists. The spike catches them cheaply first.
 
 ## Prerequisite
 
@@ -38,7 +38,7 @@ The docker spike then imports the executor registry, protocol, context, parser, 
 
 This is structurally identical to how the coverage spike depended on the runner spike: import the substrate, extend it, don't reproduce it. See [specs/spikes/coverage.md](coverage.md#prerequisite) for the established pattern.
 
-The workflow spike's `src/index.ts` must export the executor registry's `register()` and `dispatch()` surface, the `RunnerProtocol`, the `MockResolver`, and the core types (`ExecutionCall`, `ExecutionResult`, `RunResult`, `ActspecOptions`) — the same seam the real `@actspec/core` package exports. If gaps are found here, update the workflow spike's exports (not its internals) before starting the docker spike.
+The workflow spike's `src/index.ts` must export the executor registry's `register()` and `dispatch()` surface, the `RunnerProtocol`, the `MockResolver`, and the core types (`ExecutionCall`, `ExecutionResult`, `RunResult`, `ActharnessOptions`) — the same seam the real `@actharness/core` package exports. If gaps are found here, update the workflow spike's exports (not its internals) before starting the docker spike.
 
 ## The question it answers
 
@@ -74,14 +74,14 @@ When a `ContainerSandbox` backend:
 - **`args:` + `entrypoint:` wiring** — expression-evaluated args list; `--entrypoint` flag.
 - **Pre-entrypoint / post-entrypoint lifecycle** — run in order, `GITHUB_STATE` threaded.
 - **Fixture docker actions** — one per scenario (see below); all handwritten, minimal, specific to the hard case being validated.
-- **Test files** — run via the workflow spike's CLI (or equivalent), using `actspec()` globals injected by the runner, same zero-import format as all other spikes.
+- **Test files** — run via the workflow spike's CLI (or equivalent), using `actharness()` globals injected by the runner, same zero-import format as all other spikes.
 
 ## Explicitly out of scope
 
 - `podman` backend (same interface as `docker`; add as a second backend when building the real package).
 - Rootless Docker / Docker-in-Docker / remote Docker daemon.
 - Real published actions from the registry (fixture actions are handwritten — the same reasoning as the node-sandbox spike: real published actions often require system tools that test the wrong thing).
-- Full `@actspec/docker` package build (dual ESM/CJS, API Extractor, publication).
+- Full `@actharness/docker` package build (dual ESM/CJS, API Extractor, publication).
 - `services:` (sidecar containers, v0.4 scope).
 - `jsLines` / V8 coverage (not applicable to docker actions).
 
@@ -92,7 +92,7 @@ When a `ContainerSandbox` backend:
 3. **Protocol round-trip is intact** — for every real-docker scenario, at least one output written inside the container is read back correctly by the host via the bind-mounted file.
 4. **Content-hash cache works** — H4 confirmed: second run of Scenario C uses the cached image (observable via build log or timing).
 5. **H8 is resolved** — container user permissions are either a non-issue (confirmed) or a documented fix is implemented and working.
-6. **No new API surface required** — the `mock`/`run`/`expect` surface is unchanged. If any design gap forces a surface change, it is proposed explicitly and the exit decision is escalated before `@actspec/docker` starts.
+6. **No new API surface required** — the `mock`/`run`/`expect` surface is unchanged. If any design gap forces a surface change, it is proposed explicitly and the exit decision is escalated before `@actharness/docker` starts.
 
 ## The five scenarios (must all pass)
 
@@ -105,7 +105,7 @@ When a `ContainerSandbox` backend:
 **Test shape:**
 ```ts
 test('docker action is mocked by default — no daemon required', async () => {
-  const action = actspec('./action.yml');   // using: docker
+  const action = actharness('./action.yml');   // using: docker
   action.mock('./action.yml', { outputs: { result: 'mocked' } });
   const result = await action.run({ inputs: { message: 'hello' } });
   expect(result).toHaveSucceeded();
@@ -113,7 +113,7 @@ test('docker action is mocked by default — no daemon required', async () => {
 });
 
 test('docker uses: in a composite is intercepted the same way as any uses:', async () => {
-  const composite = actspec('./composite/action.yml');
+  const composite = actharness('./composite/action.yml');
   composite.mock('./docker-child', { outputs: { scanned: 'clean' } });
   const result = await composite.run({ inputs: { path: './src' } });
   expect(result).toHaveSucceeded();
@@ -130,7 +130,7 @@ test('docker uses: in a composite is intercepted the same way as any uses:', asy
 **Test shape:**
 ```ts
 test('prebuilt image: input reaches container and output is returned', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const result = await action.run({ inputs: { message: 'hello from docker' } });
   expect(result).toHaveSucceeded();
   expect(result).toHaveOutput('message', 'hello from docker');
@@ -138,7 +138,7 @@ test('prebuilt image: input reaches container and output is returned', async () 
 
 test('container running as non-root can still write to $GITHUB_OUTPUT', async () => {
   // fixture Dockerfile has USER 1000:1000
-  const action = actspec('./nonroot/action.yml', { container: 'docker' });
+  const action = actharness('./nonroot/action.yml', { container: 'docker' });
   const result = await action.run({ inputs: { value: 'x' } });
   expect(result).toHaveSucceeded();
   expect(result).toHaveOutput('echoed', 'x');
@@ -154,14 +154,14 @@ test('container running as non-root can still write to $GITHUB_OUTPUT', async ()
 **Test shape:**
 ```ts
 test('local Dockerfile is built and action produces outputs', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const result = await action.run({ inputs: { value: 'built' } });
   expect(result).toHaveSucceeded();
   expect(result).toHaveOutput('value', 'built');
 });
 
 test('second run uses the content-hash cache — no rebuild', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const first  = await action.run({ inputs: { value: 'a' } });
   const second = await action.run({ inputs: { value: 'b' } });
   // both succeed; the second run's StepResult should carry a cache-hit annotation
@@ -190,7 +190,7 @@ The `args:` list contains a `${{ }}` expression. The `entrypoint:` overrides the
 **Test shape:**
 ```ts
 test('args: expression is evaluated before docker run', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const result = await action.run({ inputs: { name: 'World' } });
   expect(result).toHaveSucceeded();
   expect(result).toHaveOutput('greeting', 'World');
@@ -215,7 +215,7 @@ Each script is baked into the image. `pre.sh` does `echo "cache-key=abc" >> $GIT
 **Test shape:**
 ```ts
 test('pre/main/post phases run in order with correct phase discriminators', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const result = await action.run({});
 
   const pre  = result.steps.find(s => s.phase === 'pre')!;
@@ -228,7 +228,7 @@ test('pre/main/post phases run in order with correct phase discriminators', asyn
 });
 
 test('GITHUB_STATE threads from pre-entrypoint to post-entrypoint', async () => {
-  const action = actspec('./action.yml', { container: 'docker' });
+  const action = actharness('./action.yml', { container: 'docker' });
   const result = await action.run({});
   expect(result).toHaveOutput('restored', 'abc');  // value set in pre, echoed by post
 });
@@ -260,12 +260,12 @@ Findings are written to [`specs/spikes/docker-findings.md`](docker-findings.md) 
 5. **`args:` / `entrypoint:` wiring assessment** — the exact `docker run` command structure; interaction between `--entrypoint`, positional args, and the image's own `ENTRYPOINT`/`CMD`.
 6. **Lifecycle assessment** — how pre-entrypoint / post-entrypoint are invoked; how `GITHUB_STATE` is shared between phases (same file, same mount in both containers); correct `phase` values on `StepResult`s.
 7. **Mock backend integration** — confirm it requires zero new mock API. Note whether `container: 'mock'` uses the existing `MockResolver` path unchanged or needs a thin shim.
-8. **Proposed changes** — table of any design changes before building `@actspec/docker`: `change`, `ARCHITECTURE.md / v0.3.md / API.md section`, `why`, `priority`.
+8. **Proposed changes** — table of any design changes before building `@actharness/docker`: `change`, `ARCHITECTURE.md / v0.3.md / API.md section`, `why`, `priority`.
 
 ## Exit — what we decide after
 
-- **If all five scenarios pass, no design gaps:** the spike's `ContainerSandbox` and docker executor are promoted as the starting point for `@actspec/docker`. The design is confirmed as-is.
-- **If protocol mounting fails (H1/probe #1/probe #2):** the entire ContainerSandbox design premise is wrong — escalate as a design question. Options: use named volumes instead of bind mounts; pass outputs via container stdout + a sentinel protocol; run the container with `--user $(id -u)`. Record findings and update [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) before any `@actspec/docker` work begins.
+- **If all five scenarios pass, no design gaps:** the spike's `ContainerSandbox` and docker executor are promoted as the starting point for `@actharness/docker`. The design is confirmed as-is.
+- **If protocol mounting fails (H1/probe #1/probe #2):** the entire ContainerSandbox design premise is wrong — escalate as a design question. Options: use named volumes instead of bind mounts; pass outputs via container stdout + a sentinel protocol; run the container with `--user $(id -u)`. Record findings and update [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) before any `@actharness/docker` work begins.
 - **If container user permissions are unresolvable (H8/probe #3):** record the constraint and a workaround (e.g. always create protocol temp files as world-writable, `0o666`). Update [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) and [CONVENTIONS](../../docs/CONVENTIONS.md) with the invariant.
 - **If content-hash caching is unreliable (H4):** document what cache key works in practice; update [ARCHITECTURE → ContainerSandbox](../../docs/ARCHITECTURE.md#sandboxes). The cache is a performance optimisation, not a correctness requirement — its failure doesn't block v0.3.
 - **If pre-entrypoint / post-entrypoint lifecycle is structurally wrong (H6):** determine whether GitHub's actual `pre-entrypoint` semantics differ from the JS action `pre:`/`post:` model already in `StepResult.phase`. Update [API.md §4](../../docs/API.md) and [ARCHITECTURE → Fidelity](../../docs/ARCHITECTURE.md#fidelity--semantics) before building.
@@ -280,6 +280,6 @@ Findings are written to [`specs/spikes/docker-findings.md`](docker-findings.md) 
 - [docs/ARCHITECTURE.md → ContainerSandbox](../../docs/ARCHITECTURE.md#sandboxes) — the design this spike validates.
 - [docs/ARCHITECTURE.md → Fidelity & semantics](../../docs/ARCHITECTURE.md#fidelity--semantics) — pre/main/post lifecycle spec for docker actions.
 - [specs/versions/v0.3.md](../versions/v0.3.md) — the version this spike gates.
-- [docs/API.md §1](../../docs/API.md) — `ActspecOptions.container` (`'mock'` | `'docker'` | `'podman'`).
+- [docs/API.md §1](../../docs/API.md) — `ActharnessOptions.container` (`'mock'` | `'docker'` | `'podman'`).
 - [D15](../../docs/DECISIONS.md#d15--real-shelljS-execution-not-emulation) — real execution is the product; the spike validates this extends naturally to containers.
 - [D16](../../docs/DECISIONS.md#d16--unmocked-uses-policy-local-real-remote-noop) — default mock policy for remote docker refs.

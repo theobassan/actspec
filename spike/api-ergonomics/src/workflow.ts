@@ -1,7 +1,7 @@
 // Minimal WorkflowRunner: sequential job execution with needs: output threading.
 // No matrix expansion (out of scope for this spike).
 
-import { evaluateTemplate } from '@actspec/expressions';
+import { evaluateTemplate } from '@actharness/expressions';
 import { buildContexts, buildEnvVars, resolveInputValues } from './context.js';
 import { runComposite, makeRunResult } from './composite.js';
 import { runNode } from './node.js';

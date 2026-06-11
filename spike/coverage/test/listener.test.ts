@@ -1,12 +1,12 @@
-// H5 (registerRunListener fires within workers), probe #4 (under actspec runner)
+// H5 (registerRunListener fires within workers), probe #4 (under actharness runner)
 
 import { resolve } from 'path';
 import { collector } from '../src/coverage-register.js';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
 
-describe('H5 — listener fires in this worker (actspec runner)', () => {
+describe('H5 — listener fires in this worker (actharness runner)', () => {
   let stepsBefore: number;
 
   beforeAll(() => {
@@ -14,7 +14,7 @@ describe('H5 — listener fires in this worker (actspec runner)', () => {
   });
 
   it('collector receives coverage from run() and covered steps increase', async () => {
-    const action = actspec(resolve(FIXTURES, 'guarded/action.yml'));
+    const action = actharness(resolve(FIXTURES, 'guarded/action.yml'));
     await action.run({ inputs: { mode: 'full' } });
 
     const stepsAfter = collector.getCoveredSteps();
@@ -22,7 +22,7 @@ describe('H5 — listener fires in this worker (actspec runner)', () => {
   });
 
   it('collector sees both directions of an if: guard across two runs', async () => {
-    const action = actspec(resolve(FIXTURES, 'guarded/action.yml'));
+    const action = actharness(resolve(FIXTURES, 'guarded/action.yml'));
 
     await action.run({ inputs: { mode: 'full' } });
     await action.run({ inputs: { mode: 'quick', 'skip-notify': 'true' } });
@@ -42,7 +42,7 @@ describe('H5 — listener fires in this worker (actspec runner)', () => {
   });
 
   it('fragment contains the guarded action source file', async () => {
-    const action = actspec(resolve(FIXTURES, 'guarded/action.yml'));
+    const action = actharness(resolve(FIXTURES, 'guarded/action.yml'));
     await action.run({ inputs: { mode: 'full' } });
 
     const fragment = collector.getFragment();
@@ -50,7 +50,7 @@ describe('H5 — listener fires in this worker (actspec runner)', () => {
     expect(fragment[sourceFile]).toBeDefined();
   });
 
-  it('documents that flush mechanism is process.on(exit) under actspec runner', () => {
+  it('documents that flush mechanism is process.on(exit) under actharness runner', () => {
     // Under node:test child processes, process.on('exit', ...) fires reliably.
     // No afterAll/beforeExit dance needed (proven in runner spike H6).
     console.log('[probe #4] flush mechanism: process.on(exit) — child process model, no workaround needed');

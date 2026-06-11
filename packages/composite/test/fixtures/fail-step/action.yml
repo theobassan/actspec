@@ -1,0 +1,12 @@
+name: Fail Step
+description: Composite action where a step always fails (conclusion=failure)
+outputs:
+  result:
+    description: result
+    value: done
+runs:
+  using: composite
+  steps:
+    - name: fail
+      shell: bash
+      run: exit 1

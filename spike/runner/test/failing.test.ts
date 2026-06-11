@@ -3,18 +3,18 @@
 
 describe('failure messages', () => {
   it('toHaveFailed on a success result shows conclusion', async () => {
-    const result = await actspec('./action.yml').run();
+    const result = await actharness('./action.yml').run();
     // stub always returns success — this fails intentionally
     expect(result).toHaveFailed();
   });
 
   it('toHaveOutput with wrong value shows key + actual + expected', async () => {
-    const result = await actspec('./action.yml').run();
+    const result = await actharness('./action.yml').run();
     expect(result).toHaveOutput('greeting', 'Hello Nobody');
   });
 
   it('.not.toHaveSucceeded on a success result shows message', async () => {
-    const result = await actspec('./action.yml').run();
+    const result = await actharness('./action.yml').run();
     expect(result).not.toHaveSucceeded();
   });
 

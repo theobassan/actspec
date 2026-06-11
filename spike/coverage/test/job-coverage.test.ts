@@ -6,14 +6,14 @@ import { createCoverageMap } from '../src/istanbul-compat.js';
 import libReport from 'istanbul-lib-report';
 import reports from 'istanbul-reports';
 import { buildWorkflowCoverage, buildActionCoverage, updateWorkflowCoverage, updateActionCoverage } from '../src/istanbul-map.js';
-import { actspec, actspecWorkflow } from '../src/index.js';
+import { actharness, actharnessWorkflow } from '../src/index.js';
 import { collector } from '../src/coverage-register.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
 
 describe('H10 / Probe #12 — job coverage alongside step coverage', () => {
   it('workflow run produces job coverage in the collector', async () => {
-    const wf = actspecWorkflow(resolve(FIXTURES, 'pipeline.yml'));
+    const wf = actharnessWorkflow(resolve(FIXTURES, 'pipeline.yml'));
     wf.mock('actions/checkout@v4', { outputs: {} });
 
     await wf.run({});
@@ -67,7 +67,7 @@ describe('H10 / Probe #12 — job coverage alongside step coverage', () => {
     updateWorkflowCoverage(wfCov, wfMeta, 'test', true);
     updateWorkflowCoverage(wfCov, wfMeta, 'deploy', true);
 
-    const action = actspec(actionPath);
+    const action = actharness(actionPath);
     await action.run({ inputs: { mode: 'full' } }).then(r => updateActionCoverage(actionCov, actionMeta, r));
 
     const map = createCoverageMap({});

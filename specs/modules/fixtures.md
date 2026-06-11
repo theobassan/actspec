@@ -1,6 +1,6 @@
-# `@actspec/fixtures`
+# `@actharness/fixtures`
 
-Realistic `github`/`runner` context defaults and event-payload factories, so test authors don't hand-roll envelopes. Also the source of the defaults `@actspec/core` applies when a `run()` omits context.
+Realistic `github`/`runner` context defaults and event-payload factories, so test authors don't hand-roll envelopes. Also the source of the defaults `@actharness/core` applies when a `run()` omits context.
 
 ## Owns (public surface)
 [API.md §12](../../docs/API.md):
@@ -18,13 +18,13 @@ export const events: {
 (v0.1 ships these three events; more `on:` events arrive with v0.4 trigger work. Keep the registry open.)
 
 ## Depends on
-`@actspec/types` only. Pure data + builders; no side effects. Does **not** depend on `@actspec/core`.
+`@actharness/types` only. Pure data + builders; no side effects. Does **not** depend on `@actharness/core`.
 
 ## Behavior (MUST)
 - **The field schemas + default values are pinned in [docs/CONTEXTS.md](../../docs/CONTEXTS.md)** — match them exactly (this is the contract `${{ github.* }}`/`${{ runner.* }}` resolve against). Type the full webhook payloads from `@octokit/webhooks-types` rather than re-transcribing.
 - Each factory returns a **complete, internally-consistent** object (e.g. `github.repository` + `repository_owner` agree; `push` payload's `ref` matches `github.ref` when both are defaulted).
 - Overrides are **deep-merged** over defaults (arrays replace, objects merge).
-- Defaults are deterministic and sourced from `@actspec/types` (single source of truth — both `core` and `fixtures` import `GITHUB_DEFAULTS`/`RUNNER_DEFAULTS` from `@actspec/types`; neither defines its own).
+- Defaults are deterministic and sourced from `@actharness/types` (single source of truth — both `core` and `fixtures` import `GITHUB_DEFAULTS`/`RUNNER_DEFAULTS` from `@actharness/types`; neither defines its own).
 - Event payloads mirror the **real GitHub webhook shape** for the covered events (enough fidelity that `github.event.*` dereferences in expressions resolve as on a real runner).
 
 ## Acceptance

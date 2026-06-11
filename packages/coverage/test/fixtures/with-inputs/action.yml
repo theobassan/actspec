@@ -1,0 +1,15 @@
+name: With Inputs
+inputs:
+  greeting:
+    description: Name to greet
+    default: World
+  token:
+    description: Auth token
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: step1
+      name: run
+      shell: bash
+      run: echo "Hello ${{ inputs.greeting }}"

@@ -1,19 +1,19 @@
-// H1+H2: zero imports — describe, it, actspec, expect all come from --import register.ts
+// H1+H2: zero imports — describe, it, actharness, expect all come from --import register.ts
 
-describe('actspec stub', () => {
+describe('actharness stub', () => {
   it('run() returns a success result', async () => {
-    const result = await actspec('./action.yml').run({ inputs: { name: 'World' } });
+    const result = await actharness('./action.yml').run({ inputs: { name: 'World' } });
     expect(result).toHaveSucceeded();
   });
 
   it('outputs are available', async () => {
-    const result = await actspec('./action.yml').run();
+    const result = await actharness('./action.yml').run();
     expect(result).toHaveOutput('greeting');
     expect(result).toHaveOutput('greeting', 'Hello World');
   });
 
   it('mock captures calls', async () => {
-    const action = actspec('./action.yml');
+    const action = actharness('./action.yml');
     const checkout = action.mock('actions/checkout@v4', { outputs: { ref: 'abc' } });
     await action.run();
     expect(checkout).toHaveBeenCalledWith({ name: 'World' });

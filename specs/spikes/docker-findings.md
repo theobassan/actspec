@@ -1,8 +1,8 @@
 # Docker Spike — Findings
 
-> **Status: COMPLETE.** All 21 tests pass (5 files: A–E). H1–H8 confirmed. Gate met — `@actspec/docker` can be built from this spike's `ContainerSandbox` design.
+> **Status: COMPLETE.** All 21 tests pass (5 files: A–E). H1–H8 confirmed. Gate met — `@actharness/docker` can be built from this spike's `ContainerSandbox` design.
 >
-> Run: `cd spike/docker && ACTSPEC_CONTAINER=docker npm run test:docker` (21/21 pass).
+> Run: `cd spike/docker && ACTHARNESS_CONTAINER=docker npm run test:docker` (21/21 pass).
 > Mock-only run: `cd spike/docker && npm test` (4/21; 17 correctly skipped).
 
 ---
@@ -26,8 +26,8 @@
 
 | # | Probe | What was wanted | What the implementation revealed | Classification |
 |---|---|---|---|---|
-| 1 | Protocol file bind-mount round-trip | Container writes to bind-mounted file; host reads it after exit | Works on macOS: Docker Desktop shares `/tmp` via its VM; `/tmp/actspec-<id>/output` is accessible inside the container at the same absolute path. No path translation needed. | **no change needed** |
-| 2 | Absolute path identity | Host path == container path | Confirmed. `os.tmpdir()` returns `/tmp` on macOS under Docker Desktop, not `/var/folders/...`. Bind-mount with `-v /tmp/actspec-id/f:/tmp/actspec-id/f` works as-is. | **no change needed** |
+| 1 | Protocol file bind-mount round-trip | Container writes to bind-mounted file; host reads it after exit | Works on macOS: Docker Desktop shares `/tmp` via its VM; `/tmp/actharness-<id>/output` is accessible inside the container at the same absolute path. No path translation needed. | **no change needed** |
+| 2 | Absolute path identity | Host path == container path | Confirmed. `os.tmpdir()` returns `/tmp` on macOS under Docker Desktop, not `/var/folders/...`. Bind-mount with `-v /tmp/actharness-id/f:/tmp/actharness-id/f` works as-is. | **no change needed** |
 | 3 | Non-root user write permission (H8) | `USER 1000:1000` can write to `$GITHUB_OUTPUT` | `chmod 0o666` applied before each `docker run` is sufficient. No chown or named volume workaround needed. | **no change needed** |
 | 4 | `docker://registry/img` format | `docker://` prefix doesn't confuse `docker run` | `image.slice('docker://'.length)` → `alpine:3.19` passed directly to `docker run`. Works. | **no change needed** |
 | 5 | Dockerfile content-hash cache key | Same content → same key; different content → different key | SHA-256 of `Dockerfile + .dockerignore` content (16 hex chars) is stable and correct. Confirmed by `getImageCacheSize()` advancing only when Dockerfile content changes. | **no change needed** |
@@ -46,19 +46,19 @@
 ```
 docker run --rm \
   -e INPUT_<NAME>=<value> \
-  -e GITHUB_OUTPUT=/tmp/actspec-<id>/output \
-  -e GITHUB_ENV=/tmp/actspec-<id>/env \
-  -e GITHUB_STATE=/tmp/actspec-<id>/state \
-  -e GITHUB_PATH=/tmp/actspec-<id>/path \
-  -e GITHUB_STEP_SUMMARY=/tmp/actspec-<id>/summary \
+  -e GITHUB_OUTPUT=/tmp/actharness-<id>/output \
+  -e GITHUB_ENV=/tmp/actharness-<id>/env \
+  -e GITHUB_STATE=/tmp/actharness-<id>/state \
+  -e GITHUB_PATH=/tmp/actharness-<id>/path \
+  -e GITHUB_STEP_SUMMARY=/tmp/actharness-<id>/summary \
   -e GITHUB_REPOSITORY=... \
   [... other context env vars ...] \
   [... STATE_<key>=<value> for each accumulated state entry ...] \
-  -v /tmp/actspec-<id>/output:/tmp/actspec-<id>/output \
-  -v /tmp/actspec-<id>/env:/tmp/actspec-<id>/env \
-  -v /tmp/actspec-<id>/state:/tmp/actspec-<id>/state \
-  -v /tmp/actspec-<id>/path:/tmp/actspec-<id>/path \
-  -v /tmp/actspec-<id>/summary:/tmp/actspec-<id>/summary \
+  -v /tmp/actharness-<id>/output:/tmp/actharness-<id>/output \
+  -v /tmp/actharness-<id>/env:/tmp/actharness-<id>/env \
+  -v /tmp/actharness-<id>/state:/tmp/actharness-<id>/state \
+  -v /tmp/actharness-<id>/path:/tmp/actharness-<id>/path \
+  -v /tmp/actharness-<id>/summary:/tmp/actharness-<id>/summary \
   [--entrypoint <entrypoint>] \
   <image> [args...]
 ```
@@ -81,7 +81,7 @@ docker run --rm \
 
 **Cache key construction:** `createHash('sha256').update(dockerfileContent + dockerignoreContent).digest('hex').slice(0, 16)`. Empty `.dockerignore` → absent (key input is empty string).
 
-**Cache scope:** module-level `Map<string, string>`. Persists across `actspec().run()` calls within one process. Cleared between Vitest test files (each worker gets a fresh module graph). `clearImageCache()` exported for explicit control.
+**Cache scope:** module-level `Map<string, string>`. Persists across `actharness().run()` calls within one process. Cleared between Vitest test files (each worker gets a fresh module graph). `clearImageCache()` exported for explicit control.
 
 **Invalidation confirmed:** `scenario-c` (bare `FROM alpine:3.19`) and `scenario-c-alt` (adds `ENV VARIANT=alt`) produce distinct cache keys. `getImageCacheSize()` grows from 1 → 2 when both are run; stays at 2 when the first is re-run (cache hit).
 
@@ -134,7 +134,7 @@ The `-c` and the shell command are two distinct positional args (two entries in 
 | Document `post-entrypoint` unconditional execution | `docs/ARCHITECTURE.md → Fidelity` | Probe #9 confirmed: no `post-if` analog for docker actions | ✅ Done |
 | Document macOS `/tmp` path behavior | `docs/ARCHITECTURE.md → Sandboxes` | Probe #2 resolved: Docker Desktop maps `/tmp` correctly; no `/var/folders` issue | Done in this document |
 | State key hyphen limitation | `docs/API.md` or `docs/ARCHITECTURE.md` | Keys with hyphens in `$GITHUB_STATE` produce `STATE_cache-key` which is not a valid shell variable name — action authors should use underscores | **Nice-to-have doc note** |
-| Export `getImageCacheSize()` for test instrumentation | `spike/docker/src/container.ts` | Required to assert H4 invalidation test | ✅ Done (spike only; not promoted to `@actspec/docker`) |
+| Export `getImageCacheSize()` for test instrumentation | `spike/docker/src/container.ts` | Required to assert H4 invalidation test | ✅ Done (spike only; not promoted to `@actharness/docker`) |
 
 ---
 
@@ -142,7 +142,7 @@ The `-c` and the shell command are two distinct positional args (two entries in 
 
 **All 21 tests pass. No design gaps. Gate met.**
 
-The spike's `ContainerSandbox` and docker executor are the starting point for `@actspec/docker`. The design is confirmed as-is:
+The spike's `ContainerSandbox` and docker executor are the starting point for `@actharness/docker`. The design is confirmed as-is:
 
 - **Bind-mount protocol:** exact host path = container path. Works on Linux and macOS Docker Desktop. `chmod 0o666` before each `docker run` handles non-root containers.
 - **Three image sources:** normalized and working. Content-hash cache correct.
@@ -150,4 +150,4 @@ The spike's `ContainerSandbox` and docker executor are the starting point for `@
 - **Pre/main/post lifecycle:** correct. Post unconditional. State threading via JS accumulator.
 - **Mock backend:** zero daemon dependency by default.
 
-Proceed to build `@actspec/docker` per [v0.3.md](../versions/v0.3.md) once v0.2 is validated. Evolve `spike/docker/src/` into the package — do not start from scratch.
+Proceed to build `@actharness/docker` per [v0.3.md](../versions/v0.3.md) once v0.2 is validated. Evolve `spike/docker/src/` into the package — do not start from scratch.

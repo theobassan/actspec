@@ -1,5 +1,5 @@
 {
-  "name": "actspec-tagger-fixture",
+  "name": "actharness-tagger-fixture",
   "private": true,
   "version": "1.0.0",
   "description": "Node action fixture for api-ergonomics spike",

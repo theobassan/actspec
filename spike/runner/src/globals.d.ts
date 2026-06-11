@@ -1,6 +1,6 @@
 // Global type declarations injected into every test file by --import register.ts
-// In the real @actspec/matchers package this ships as globals.d.ts; users add
-// "types": ["@actspec/matchers/globals"] to their tsconfig.json once.
+// In the real @actharness/matchers package this ships as globals.d.ts; users add
+// "types": ["@actharness/matchers/globals"] to their tsconfig.json once.
 
 interface StubRunResult {
   conclusion: 'success' | 'failure';
@@ -39,8 +39,8 @@ interface StubAction {
   }): Promise<StubRunResult>;
 }
 
-interface ActspecMatcher {
-  readonly not: ActspecMatcher;
+interface ActharnessMatcher {
+  readonly not: ActharnessMatcher;
   // primitives
   toBe(expected: unknown): void;
   toEqual(expected: unknown): void;
@@ -58,7 +58,7 @@ interface ActspecMatcher {
   toMatch(pattern: RegExp | string): void;
   // functions
   toThrow(): void;
-  // actspec-specific
+  // actharness-specific
   toHaveSucceeded(): void;
   toHaveFailed(): void;
   toHaveOutput(key: string, expected?: string): void;
@@ -74,5 +74,5 @@ declare function beforeEach(fn: () => void | Promise<void>): void;
 declare function afterEach(fn: () => void | Promise<void>): void;
 declare function beforeAll(fn: () => void | Promise<void>): void;
 declare function afterAll(fn: () => void | Promise<void>): void;
-declare function actspec(source: string): StubAction;
-declare function expect(value: unknown): ActspecMatcher;
+declare function actharness(source: string): StubAction;
+declare function expect(value: unknown): ActharnessMatcher;

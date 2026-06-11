@@ -12,7 +12,7 @@ export interface ProtocolFiles {
 }
 
 export function allocateProtocolFiles(): ProtocolFiles {
-  const dir = mkdtempSync(join(tmpdir(), 'actspec-sandbox-'));
+  const dir = mkdtempSync(join(tmpdir(), 'actharness-sandbox-'));
   const output = join(dir, 'output');
   const env = join(dir, 'env');
   const state = join(dir, 'state');

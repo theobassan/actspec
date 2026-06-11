@@ -1,2 +1,7 @@
 packages:
   - 'packages/*'
+  - 'fixtures'
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@types/node@22.19.21'

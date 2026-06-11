@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspecWorkflow } from '../src/index.js';
+import { actharnessWorkflow } from '../src/index.js';
 import type { Workflow } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,11 +15,11 @@ describe('workflow-release', () => {
   let workflow: Workflow;
 
   beforeEach(() => {
-    workflow = actspecWorkflow(FIXTURE);
+    workflow = actharnessWorkflow(FIXTURE);
     // Mock remote uses: steps in the workflow jobs.
     workflow.mock('actions/checkout@v4');
     workflow.mock('actions/upload-artifact@v4', {
-      outputs: { 'artifact-url': 'https://github.com/actspec/test-repo/actions/runs/1/artifacts/42' },
+      outputs: { 'artifact-url': 'https://github.com/actharness/test-repo/actions/runs/1/artifacts/42' },
     });
   });
 

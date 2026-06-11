@@ -1,15 +1,15 @@
-// H3/H4 (disk-first pattern under actspec runner), H6 (parallel safety), probe #6 (fragment ready)
+// H3/H4 (disk-first pattern under actharness runner), H6 (parallel safety), probe #6 (fragment ready)
 // This file runs as a separate worker from listener.test.ts.
 
 import { resolve } from 'path';
 import { collector } from '../src/coverage-register.js';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
 
 describe('H3/H4/H6 — disk-first fragment data (separate worker from listener.test.ts)', () => {
   it('collector accumulates coverage for the partial action in this worker', async () => {
-    const action = actspec(resolve(FIXTURES, 'partial/action.yml'));
+    const action = actharness(resolve(FIXTURES, 'partial/action.yml'));
     await action.run({ inputs: { env: 'production' } });
 
     const fragment = collector.getFragment();
@@ -39,7 +39,7 @@ describe('H3/H4/H6 — disk-first fragment data (separate worker from listener.t
   });
 
   it('H6 — this is a separate worker from listener.test.ts; its fragment merges independently', () => {
-    console.log(`[H6] Worker pid: ${process.pid} — fragment will be written to: ${process.env['ACTSPEC_COVERAGE_TMP'] ?? '/tmp/actspec-cov-spike'}`);
+    console.log(`[H6] Worker pid: ${process.pid} — fragment will be written to: ${process.env['ACTHARNESS_COVERAGE_TMP'] ?? '/tmp/actharness-cov-spike'}`);
     expect(process.pid).toBeGreaterThan(0);
   });
 });

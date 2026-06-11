@@ -1,5 +1,5 @@
 {
-  "name": "actspec-coverage-spike",
+  "name": "actharness-coverage-spike",
   "private": true,
   "type": "module",
   "scripts": {

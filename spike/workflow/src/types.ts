@@ -192,11 +192,11 @@ export interface WorkflowResult {
   annotations: Annotation[];
 }
 
-// ── ActspecOptions ────────────────────────────────────────────────────────────
+// ── ActharnessOptions ────────────────────────────────────────────────────────────
 
 export type UnmockedUsesPolicy = 'error' | 'noop' | 'real';
 
-export interface ActspecOptions {
+export interface ActharnessOptions {
   unmockedUses?: UnmockedUsesPolicy | { local?: UnmockedUsesPolicy; remote?: UnmockedUsesPolicy };
   shell?: boolean;
   workspace?: 'temp' | string;

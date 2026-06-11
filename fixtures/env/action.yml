@@ -1,0 +1,56 @@
+name: Env Demo
+description: Shows env seed, step-level env overrides, working-directory, and $GITHUB_PATH.
+author: actharness
+
+outputs:
+  base-url:
+    description: URL from the seeded env
+    value: ${{ steps.read-env.outputs.base-url }}
+  step-url:
+    description: URL from the step-level env override
+    value: ${{ steps.override-env.outputs.step-url }}
+  cwd-name:
+    description: Name of the working directory used by the cwd step
+    value: ${{ steps.check-cwd.outputs.cwd-name }}
+  has-custom-bin:
+    description: Whether /custom/bin was prepended to PATH via $GITHUB_PATH
+    value: ${{ steps.check-path.outputs.has-custom-bin }}
+
+runs:
+  using: composite
+  steps:
+    - id: read-env
+      shell: bash
+      run: |
+        echo "base-url=$BASE_URL" >> "$GITHUB_OUTPUT"
+
+    - id: override-env
+      shell: bash
+      env:
+        BASE_URL: "https://staging.example.com"
+      run: |
+        echo "step-url=$BASE_URL" >> "$GITHUB_OUTPUT"
+
+    - id: setup-workspace
+      shell: bash
+      run: mkdir -p subdir
+
+    - id: check-cwd
+      shell: bash
+      working-directory: ./subdir
+      run: |
+        echo "cwd-name=$(basename $PWD)" >> "$GITHUB_OUTPUT"
+
+    - id: add-path
+      shell: bash
+      run: |
+        echo "/custom/bin" >> "$GITHUB_PATH"
+
+    - id: check-path
+      shell: bash
+      run: |
+        if echo "$PATH" | grep -q "/custom/bin"; then
+          echo "has-custom-bin=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "has-custom-bin=false" >> "$GITHUB_OUTPUT"
+        fi

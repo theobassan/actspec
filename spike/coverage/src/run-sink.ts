@@ -24,7 +24,7 @@ export type RunSinkPayload = ActionRunPayload | WorkflowJobPayload;
 
 export type RunListener = (payload: RunSinkPayload) => void;
 
-const SINK_KEY = Symbol.for('actspec.runSink');
+const SINK_KEY = Symbol.for('actharness.runSink');
 
 export function registerRunListener(fn: RunListener): void {
   const g = globalThis as Record<symbol, RunListener[]>;

@@ -1,5 +1,5 @@
 {
-  "name": "actspec-spike-baseline",
+  "name": "actharness-spike-baseline",
   "private": true,
   "version": "0.0.1",
   "description": "Spike fixture — baseline CJS action",

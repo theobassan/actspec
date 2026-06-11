@@ -5,14 +5,14 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__dirname, '../fixtures/scenario-a');
 
 describe('Scenario A — Mock backend (H7)', () => {
   test('docker action is mocked by default — no daemon required', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'));
+    const action = actharness(join(FIXTURES, 'action.yml'));
     action.mock(join(FIXTURES, 'action.yml'), { outputs: { result: 'mocked' } });
     const result = await action.run({ inputs: { message: 'hello' } });
     expect(result).toHaveSucceeded();
@@ -20,13 +20,13 @@ describe('Scenario A — Mock backend (H7)', () => {
   });
 
   test('unmocked docker action in mock mode returns stub success', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'));
+    const action = actharness(join(FIXTURES, 'action.yml'));
     const result = await action.run({ inputs: { message: 'hello' } });
     expect(result).toHaveSucceeded();
   });
 
   test('docker uses: in a composite is intercepted the same way as any uses:', async () => {
-    const composite = actspec(join(FIXTURES, 'composite/action.yml'));
+    const composite = actharness(join(FIXTURES, 'composite/action.yml'));
     composite.mock('./docker-child', { outputs: { scanned: 'clean' } });
     const result = await composite.run({ inputs: { path: './src' } });
     expect(result).toHaveSucceeded();
@@ -34,7 +34,7 @@ describe('Scenario A — Mock backend (H7)', () => {
   });
 
   test('mock call is recorded correctly', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'));
+    const action = actharness(join(FIXTURES, 'action.yml'));
     const m = action.mock(join(FIXTURES, 'action.yml'), { outputs: { result: 'recorded' } });
     await action.run({ inputs: { message: 'test' } });
     expect(m).toHaveBeenCalled();

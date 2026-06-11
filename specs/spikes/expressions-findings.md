@@ -1,4 +1,4 @@
-# Spike findings — expression engine (`@actspec/expressions`)
+# Spike findings — expression engine (`@actharness/expressions`)
 
 **Date:** 2026-06-05
 **Status: ✅ COMPLETE — all success criteria met.**
@@ -59,7 +59,7 @@ Full record: [`corpus/expressions/PROVENANCE.md`](../../corpus/expressions/PROVE
 **Promote.** All hypotheses confirmed, gate bites (3 corpus-caught bugs), harvest is tractable with real numbers.
 
 Next steps:
-1. Build `@actspec/expressions` — dual ESM/CJS build, real `hashFiles`, full public API, API Extractor snapshot.
+1. Build `@actharness/expressions` — dual ESM/CJS build, real `hashFiles`, full public API, API Extractor snapshot.
 2. Schedule the full vendored harvest (against the probe's estimates: ~387 act rows + runner test files + generated `&&`/`||` matrix).
 3. Add parser/eval fuzz to CI.
 

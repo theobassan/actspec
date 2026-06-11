@@ -4,7 +4,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 import { clearImageCache, getImageCacheSize } from '../src/container.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,7 +12,7 @@ const FIXTURES = join(__dirname, '../fixtures/scenario-c');
 const FIXTURES_PATH = join(__dirname, '../fixtures/scenario-c-path');
 const FIXTURES_ALT  = join(__dirname, '../fixtures/scenario-c-alt');
 
-const backend = (process.env['ACTSPEC_CONTAINER'] ?? 'mock') as 'mock' | 'docker';
+const backend = (process.env['ACTHARNESS_CONTAINER'] ?? 'mock') as 'mock' | 'docker';
 const itDocker = backend === 'docker' ? test : test.skip;
 
 describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, () => {
@@ -23,7 +23,7 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
 
   // H3: local Dockerfile is built on demand
   itDocker('local Dockerfile is built and action produces outputs (H3)', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'), { container: 'docker' });
+    const action = actharness(join(FIXTURES, 'action.yml'), { container: 'docker' });
     const result = await action.run({ inputs: { value: 'built' } });
     expect(result).toHaveSucceeded();
     expect(result).toHaveOutput('value', 'built');
@@ -31,7 +31,7 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
 
   // H4: second run with same Dockerfile skips the build (cache hit)
   itDocker('second run uses the content-hash cache — no rebuild (H4)', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'), { container: 'docker' });
+    const action = actharness(join(FIXTURES, 'action.yml'), { container: 'docker' });
     // First run: builds and caches
     const first = await action.run({ inputs: { value: 'a' } });
     // Second run: should hit the in-process cache
@@ -45,10 +45,10 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
 
   // Probe #5: same Dockerfile content -> same cache key -> no rebuild
   itDocker('identical Dockerfile content produces the same cache key (probe #5)', async () => {
-    const action1 = actspec(join(FIXTURES, 'action.yml'), { container: 'docker' });
-    const action2 = actspec(join(FIXTURES, 'action.yml'), { container: 'docker' });
+    const action1 = actharness(join(FIXTURES, 'action.yml'), { container: 'docker' });
+    const action2 = actharness(join(FIXTURES, 'action.yml'), { container: 'docker' });
     await action1.run({ inputs: { value: 'first-instance' } });
-    // Second actspec() for the same action.yml should reuse the cached image
+    // Second actharness() for the same action.yml should reuse the cached image
     const result = await action2.run({ inputs: { value: 'second-instance' } });
     expect(result).toHaveSucceeded();
     expect(result).toHaveOutput('value', 'second-instance');
@@ -56,7 +56,7 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
 
   // Probe #6a: image: Dockerfile (literal) resolves the action's own directory as build context
   itDocker('image: Dockerfile resolves the action directory as build context (probe #6a)', async () => {
-    const action = actspec(join(FIXTURES, 'action.yml'), { container: 'docker' });
+    const action = actharness(join(FIXTURES, 'action.yml'), { container: 'docker' });
     const result = await action.run({ inputs: { value: 'dockerfile-literal-ok' } });
     expect(result).toHaveSucceeded();
     expect(result).toHaveOutput('value', 'dockerfile-literal-ok');
@@ -64,7 +64,7 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
 
   // Probe #6b: image: ./path resolves relative to the action directory, not process.cwd()
   itDocker('image: ./subdir resolves Dockerfile in subdirectory relative to action dir (probe #6b)', async () => {
-    const action = actspec(join(FIXTURES_PATH, 'action.yml'), { container: 'docker' });
+    const action = actharness(join(FIXTURES_PATH, 'action.yml'), { container: 'docker' });
     const result = await action.run({ inputs: { value: 'path-form-ok' } });
     expect(result).toHaveSucceeded();
     expect(result).toHaveOutput('value', 'path-form-ok');
@@ -73,8 +73,8 @@ describe(`Scenario C — Local Dockerfile build + cache (backend: ${backend})`, 
   // H4 — cache invalidation: different Dockerfile content produces a different cache key and a distinct build
   itDocker('different Dockerfile content produces a distinct cache entry (H4 invalidation)', async () => {
     clearImageCache();
-    const actionC   = actspec(join(FIXTURES,     'action.yml'), { container: 'docker' });
-    const actionAlt = actspec(join(FIXTURES_ALT, 'action.yml'), { container: 'docker' });
+    const actionC   = actharness(join(FIXTURES,     'action.yml'), { container: 'docker' });
+    const actionAlt = actharness(join(FIXTURES_ALT, 'action.yml'), { container: 'docker' });
     await actionC.run({ inputs: { value: 'c' } });
     const sizeAfterFirst = getImageCacheSize();
     await actionAlt.run({ inputs: { value: 'alt' } });

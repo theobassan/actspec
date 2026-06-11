@@ -4,7 +4,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspecWorkflow } from '../src/index.js';
+import { actharnessWorkflow } from '../src/index.js';
 import type { Workflow } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,14 +15,14 @@ describe('friction probes', () => {
   let wf: Workflow;
 
   beforeEach(() => {
-    wf = actspecWorkflow(CI);
+    wf = actharnessWorkflow(CI);
   });
 
   // Probe #1: skipped job is accessible via result.job(id), with conclusion 'skipped'.
   // FINDING: requires JobResult.conclusion to include 'skipped' (H3 type fix applied).
   // CLASSIFICATION: type change needed (v0.1-blocking, resolved by Omit pattern in types.ts).
   test('probe #1: skipped job is accessible and has conclusion "skipped"', async () => {
-    const cwf = actspecWorkflow(CONDITIONAL);
+    const cwf = actharnessWorkflow(CONDITIONAL);
     cwf.mockJob('build', { result: 'failure' });
     const result = await cwf.run();
 

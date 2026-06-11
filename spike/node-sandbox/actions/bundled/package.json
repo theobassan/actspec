@@ -1,5 +1,5 @@
 {
-  "name": "actspec-spike-bundled",
+  "name": "actharness-spike-bundled",
   "private": true,
   "version": "0.0.1",
   "description": "Spike fixture — ncc-bundled action",

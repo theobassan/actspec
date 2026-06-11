@@ -12,6 +12,7 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": false
+    "allowSyntheticDefaultImports": true,
+    "ignoreDeprecations": "6.0"
   }
 }

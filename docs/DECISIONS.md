@@ -1,4 +1,4 @@
-# actspec — Design decisions
+# actharness — Design decisions
 
 The **rationale** behind the choices that aren't obvious from the specs alone — the *why*, the alternatives we rejected, and where each is enforced. The **what-to-do** is mirrored **inline** in the specs/docs (linked per entry), so reading a single spec is enough; this file is the reasoning, not a substitute for it.
 
@@ -10,13 +10,13 @@ Each entry is **D&lt;n&gt;**, with *Decision / Why / Rejected / Enforced in*.
 
 ## D1 — Coverage observes runs via a global run sink
 
-**Decision.** `@actspec/core` exposes a process-global listener registry — `registerRunListener(fn)`, keyed on `globalThis[Symbol.for('actspec.runSink')]`. `run()` notifies it with the finished `RunResult`. `@actspec/coverage` registers in its setup entry; **core never imports coverage**.
+**Decision.** `@actharness/core` exposes a process-global listener registry — `registerRunListener(fn)`, keyed on `globalThis[Symbol.for('actharness.runSink')]`. `run()` notifies it with the finished `RunResult`. `@actharness/coverage` registers in its setup entry; **core never imports coverage**.
 
-**Why.** Every `RunResult` must reach the `CoverageCollector`, yet core must not depend on coverage (the package DAG) and coverage must stay passive (zero execution impact). A sink keyed by `Symbol.for` survives the dual ESM/CJS boundary and is shared within one worker process — the unit Jest/Vitest parallelize on.
+**Why.** Every `RunResult` must reach the `CoverageCollector`, yet core must not depend on coverage (the package DAG) and coverage must stay passive (zero execution impact). A sink keyed by `Symbol.for` survives the dual ESM/CJS boundary and is shared within one worker process — the unit the test runner parallelizes on.
 
 **Rejected.** (a) Core importing coverage — breaks the dependency DAG. (b) An in-memory singleton collector — each test *file* runs in its own worker, so it would only ever see one file's runs. (c) Wiring through the matchers setup — couples two independent packages.
 
-**Implementation note (from coverage spike, updated for actspec test).** The coverage spike proved the disk-first fragment mechanism under both Vitest and Jest. In the final design, `actspec test` (built on `node:test`) owns the full coverage lifecycle: each worker flushes its fragment when its test file completes, and the CLI merges all fragments after all workers exit. No `setupFiles`/`globalTeardown` configuration is required — the runner manages it transparently via `--coverage`. The Jest/Vitest flush-timing heuristics (`globalThis.afterAll` detection, `process.on('beforeExit')` fallback) proved in the spike are not needed in the final implementation; they remain documented in the spike findings for completeness.
+**Implementation note (from coverage spike, updated for actharness test).** The coverage spike proved the disk-first fragment mechanism. In the final design, `actharness test` (built on `node:test`) owns the full coverage lifecycle: each worker flushes its fragment when its test file completes, and the CLI merges all fragments after all workers exit. No `setupFiles`/`globalTeardown` configuration is required — the runner manages it transparently via `--coverage`. The flush-timing heuristics proved in the spike are not needed in the final implementation; they remain documented in the spike findings for completeness.
 
 **Enforced in.** [core.md](../specs/modules/core.md) behavior 4 · [coverage.md](../specs/modules/coverage.md) behavior 1 · [ARCHITECTURE → Future-proofing invariants](ARCHITECTURE.md#future-proofing-invariants).
 
@@ -78,7 +78,7 @@ Each entry is **D&lt;n&gt;**, with *Decision / Why / Rejected / Enforced in*.
 
 ## D7 — Monorepo over polyrepo
 
-**Decision.** One repository; each `@actspec/*` is independently published.
+**Decision.** One repository; each `@actharness/*` is independently published.
 
 **Why.** The packages share core types (`ExecutionCall`, `RunResult`, `StepResult`) and a single change often spans several (adding `phase` touched core + composite + matchers + coverage) — atomic in a monorepo, a publish-and-bump chain across repos. They are tightly coupled, not team-divergent, so polyrepo's upside doesn't apply.
 
@@ -112,27 +112,27 @@ pnpm wins: strict enough to catch publish-breaking phantom deps, fast, best mult
 
 **Decision.** Every package publishes both ESM and CJS with type declarations.
 
-**Why.** actspec loads inside consumers' Node projects, and a meaningful share still use CommonJS tooling; shipping both lets users `import` *or* `require()` it. The cost — emitting two formats and minding the dual-package hazard — is worth the adoption reach.
+**Why.** actharness loads inside consumers' Node projects, and a meaningful share still use CommonJS tooling; shipping both lets users `import` *or* `require()` it. The cost — emitting two formats and minding the dual-package hazard — is worth the adoption reach.
 
 **Rejected.** ESM-only — simpler build/exports, but CJS consumers can't `require()` it. CJS-only — legacy, blocks modern ESM consumers.
 
 **Enforced in.** [CONVENTIONS → Language & runtime](CONVENTIONS.md#language--runtime).
 
-## D10 — Node 20+ floor
+## D10 — Node 22+ floor
 
-**Decision.** Source targets Node 20+.
+**Decision.** Source targets Node 22+.
 
-**Why.** Node 18 reached end-of-life (Apr 2025); 20 is a modern, broadly-available floor and lets us use 20-era APIs without guards.
+**Why.** Node 22 is required by CLI APIs used in `actharness test`; it is also an Active LTS version.
 
-**Rejected.** Node 18 (EOL — supporting an unmaintained runtime). Node 22 (smaller audience for little gain on a test library).
+**Rejected.** Node 18 (EOL — supporting an unmaintained runtime). Node 20 (insufficient for required CLI APIs).
 
 **Enforced in.** [CONVENTIONS → Language & runtime](CONVENTIONS.md#language--runtime).
 
 ## D11 — Package split (13 packages)
 
-**Decision.** Ship the packages as laid out: `core`, `expressions`, `composite`, `node`, `docker`, `workflow`, `coverage`, `matchers`, `fixtures`, `types`, `gen`, `cli`, plus the meta `actspec` — 13 independently-published packages + meta.
+**Decision.** Ship the packages as laid out: `core`, `expressions`, `composite`, `node`, `docker`, `workflow`, `coverage`, `matchers`, `fixtures`, `types`, `gen`, `cli`, plus the meta `actharness` — 13 independently-published packages + meta.
 
-**Why.** The split maps 1:1 to the plugin architecture (executors/orchestrators register into `core`), so consumers install only what they need and `@actspec/expressions` keeps its independent life. These boundaries are what make adding an executor/orchestrator additive rather than a refactor.
+**Why.** The split maps 1:1 to the plugin architecture (executors/orchestrators register into `core`), so consumers install only what they need and `@actharness/expressions` keeps its independent life. These boundaries are what make adding an executor/orchestrator additive rather than a refactor.
 
 **Rejected.** Coarser grouping — simpler releases, but couples independently-useful pieces (the standalone expression engine) and blurs the executor-as-plugin model.
 
@@ -173,15 +173,15 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 **Decision.** *(All swappable defaults — chosen for fit, not locked forever.)*
 - **Build:** `tsup` (esbuild + dts) → dual ESM+CJS per package; a single package may drop to rollup/unbuild if it needs special bundling.
 - **Lint/format:** ESLint (typescript-eslint, **type-aware**) + Prettier.
-- **Unit test runner:** Vitest — for actspec's own package tests (expression engine, parser, protocol, etc.).
-- **Integration test runner:** `actspec test` — the walking skeleton and module acceptance scenarios (real action execution through the full stack) run via `actspec test`, dogfooding the runner.
-- **CI matrix:** {Linux, macOS, Windows} × {Node 20, 22, 24}.
+- **Unit test runner:** for actharness's own package tests (expression engine, parser, protocol, etc.).
+- **Integration test runner:** `actharness test` — the walking skeleton and module acceptance scenarios (real action execution through the full stack) run via `actharness test`, dogfooding the runner.
+- **CI matrix:** {Linux, macOS, Windows} × {Node 22, 24}.
 - **Public-API gate:** API Extractor — a committed API report; a surface change without review fails CI.
 - **Packaging checks:** `@arethetypeswrong/cli` + `publint` — validate dual ESM/CJS export resolution.
 
-**Why.** `tsup` gives dual output with near-zero config across 12 packages (rollup considered — more control, but more config ×12; reserved per-package). **ESLint over Biome** specifically because **type-aware** rules are needed to enforce the determinism ban (no `Date.now`/`Math.random`/`randomUUID` — see [CONVENTIONS → Determinism](CONVENTIONS.md#determinism-the-librarys-own-behavior)); Biome's type-aware linting is too limited for that today. **Vitest** for unit tests is the natural fit — it tests TypeScript logic (expression evaluator, protocol parser, etc.) without needing a real `action.yml`. **`actspec test`** for integration tests dogfoods the runner on real action fixtures, providing a final end-to-end validation of the stack (the walking skeleton and module acceptance scenarios). The **full OS×Node matrix** matters because real `run:` shell execution is OS-sensitive. **API Extractor** backs the "no breaking changes v0.1→v0.4" semver promise; **attw + publint** catch dual-package ([D9](#d9--dual-esm--cjs-output)) resolution bugs.
+**Why.** `tsup` gives dual output with near-zero config across 12 packages (rollup considered — more control, but more config ×12; reserved per-package). **ESLint over Biome** specifically because **type-aware** rules are needed to enforce the determinism ban (no `Date.now`/`Math.random`/`randomUUID` — see [CONVENTIONS → Determinism](CONVENTIONS.md#determinism-the-librarys-own-behavior)); Biome's type-aware linting is too limited for that today. The unit test runner tests TypeScript logic (expression evaluator, protocol parser, etc.) without needing a real `action.yml`. **`actharness test`** for integration tests dogfoods the runner on real action fixtures, providing a final end-to-end validation of the stack (the walking skeleton and module acceptance scenarios). The **full OS×Node matrix** matters because real `run:` shell execution is OS-sensitive. **API Extractor** backs the "no breaking changes v0.1→v0.4" semver promise; **attw + publint** catch dual-package ([D9](#d9--dual-esm--cjs-output)) resolution bugs.
 
-**Rejected.** rollup/unbuild as the *default* (config ×12); Biome (can't robustly enforce the determinism ban); Jest as unit runner (Vitest is faster and better ESM support); narrower CI (misses OS-specific shell behavior).
+**Rejected.** rollup/unbuild as the *default* (config ×12); Biome (can't robustly enforce the determinism ban); narrower CI (misses OS-specific shell behavior).
 
 **Enforced in.** [CONVENTIONS → Build, lint, test tooling](CONVENTIONS.md#build-lint-test-tooling-defaults-swappable) + [CI matrix](CONVENTIONS.md#ci-matrix) + [Public API stability](CONVENTIONS.md#public-api-stability).
 
@@ -197,17 +197,17 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Rejected.** Emulating/interpreting the shell (infeasible, lossy). Requiring all `run:` stubbed by default (loses the real-bash fidelity that is the product's point — kept as the opt-in `shell:false`).
 
-**Enforced in.** [ARCHITECTURE → Sandboxes](ARCHITECTURE.md#sandboxes) + [Shell execution fidelity](ARCHITECTURE.md#fidelity--semantics) + [Threat model](ARCHITECTURE.md#threat-model) · API.md `ActspecOptions.shell`/`isolation`.
+**Enforced in.** [ARCHITECTURE → Sandboxes](ARCHITECTURE.md#sandboxes) + [Shell execution fidelity](ARCHITECTURE.md#fidelity--semantics) + [Threat model](ARCHITECTURE.md#threat-model) · API.md `ActharnessOptions.shell`/`isolation`.
 
 ## D16 — Unmocked `uses:` policy: local→real, remote→noop
 
 **Decision.** An unmocked `uses:` → **local** refs (`./`, `../`) execute for real (recurse); **remote** refs (`owner/repo@ref`, `docker://…`) are inert success + a warning annotation. Overridable per-ref/globally to `error`/`noop`/`real` (`real` resolves local paths only).
 
-**Why.** Jest-like "your own local code just runs" with zero ceremony; hermetic (no network) for remote; the warning keeps the gap visible rather than silent. Teams wanting strictness flip the default to `error`.
+**Why.** "Your own local code just runs" with zero ceremony; hermetic (no network) for remote; the warning keeps the gap visible rather than silent. Teams wanting strictness flip the default to `error`.
 
 **Rejected.** Everything→`error` (ceremony even for local composition — offered as opt-in). Everything→`noop` (local actions you own silently don't run, hides real gaps).
 
-**Enforced in.** [ARCHITECTURE → Mocking model](ARCHITECTURE.md#mocking-model--two-distinct-surfaces-one-mental-model-mock-your-dependencies) · API.md `ActspecOptions.unmockedUses` · [core.md](../specs/modules/core.md) behavior 6.
+**Enforced in.** [ARCHITECTURE → Mocking model](ARCHITECTURE.md#mocking-model--two-distinct-surfaces-one-mental-model-mock-your-dependencies) · API.md `ActharnessOptions.unmockedUses` · [core.md](../specs/modules/core.md) behavior 6.
 
 ## D17 — Determinism frozen by default
 
@@ -227,7 +227,7 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Rejected.** A parser generator (worse positions, adds a dependency, overkill for this grammar). Plain recursive descent (more boilerplate per precedence level for no gain).
 
-**Enforced in.** [ARCHITECTURE → Expression engine](ARCHITECTURE.md#expression-engine-actspecexpressions--the-hard-part) · [EXPRESSIONS → Pipeline](EXPRESSIONS.md#pipeline) · [expressions.md](../specs/modules/expressions.md).
+**Enforced in.** [ARCHITECTURE → Expression engine](ARCHITECTURE.md#expression-engine-actharnessexpressions--the-hard-part) · [EXPRESSIONS → Pipeline](EXPRESSIONS.md#pipeline) · [expressions.md](../specs/modules/expressions.md).
 
 ## D19 — Istanbul coverage-map representation
 
@@ -241,13 +241,13 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 ## D20 — Standalone, zero-dep expression engine
 
-**Decision.** `@actspec/expressions` is published standalone with zero `@actspec/*` deps (ideally zero runtime deps).
+**Decision.** `@actharness/expressions` is published standalone with zero `@actharness/*` deps (ideally zero runtime deps).
 
 **Why.** No complete JS implementation of the GitHub Actions expression language exists — real community value — and a standalone package forces clean boundaries. Consistent with the package split ([D11](#d11--keep-the-12-package-split)).
 
-**Rejected.** Folding it into `@actspec/core` (loses community value + boundary discipline; contradicts D11).
+**Rejected.** Folding it into `@actharness/core` (loses community value + boundary discipline; contradicts D11).
 
-**Enforced in.** [ARCHITECTURE → Expression engine](ARCHITECTURE.md#expression-engine-actspecexpressions--the-hard-part) + [Package layout](ARCHITECTURE.md#package-layout-pnpm-monorepo) · [expressions.md](../specs/modules/expressions.md) · API.md §7.
+**Enforced in.** [ARCHITECTURE → Expression engine](ARCHITECTURE.md#expression-engine-actharnessexpressions--the-hard-part) + [Package layout](ARCHITECTURE.md#package-layout-pnpm-monorepo) · [expressions.md](../specs/modules/expressions.md) · API.md §7.
 
 ## D21 — Mock surface: keep the split (not unified)
 
@@ -271,7 +271,7 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 ## D23 — Golden-captures testing strategy
 
-**Decision.** Adopt golden captures — record a real GitHub run's observable output (outputs, env-file writes, annotations) for a **small** set of real actions, commit them, and assert actspec reproduces them. Start small in v0.1; grow over time.
+**Decision.** Adopt golden captures — record a real GitHub run's observable output (outputs, env-file writes, annotations) for a **small** set of real actions, commit them, and assert actharness reproduces them. Start small in v0.1; grow over time.
 
 **Why.** End-to-end fidelity evidence beyond the unit corpora (expression/protocol) — makes the fidelity claims falsifiable against real runs. Cost (capture infra + maintenance) is kept proportionate by starting small.
 
@@ -293,19 +293,19 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Decision.** Every `package.json` declares `"sideEffects": false` **except** the executor-registration module, which is listed in the `sideEffects` array. Executors register into `core` via that one side-effectful entry.
 
-**Why.** Two goals collide: tree-shaking for consumers (`sideEffects: false`) vs. "installing `@actspec/docker` teaches the runtime about `using: docker`" (an import side effect a bundler could drop). Excepting *only* the registration entry keeps both — pure modules stay tree-shakeable, registration is never pruned.
+**Why.** Two goals collide: tree-shaking for consumers (`sideEffects: false`) vs. "installing `@actharness/docker` teaches the runtime about `using: docker`" (an import side effect a bundler could drop). Excepting *only* the registration entry keeps both — pure modules stay tree-shakeable, registration is never pruned.
 
 **Rejected.** `sideEffects:false` everywhere + an explicit `register()` call (changes the install-to-enable ergonomics). Import-time self-registration with no exception (executor packages then can't be `sideEffects:false`, losing tree-shaking).
 
 **Enforced in.** [CONVENTIONS → Monorepo & packaging](CONVENTIONS.md#monorepo--packaging) · [ARCHITECTURE → Package layout](ARCHITECTURE.md#package-layout-pnpm-monorepo).
 
-## D26 — actspec ships its own `expect()` — no Jest or Vitest peer dependency
+## D26 — actharness ships its own `expect()` — no test-framework peer dependency
 
-**Decision.** `@actspec/matchers` ships actspec's **own** `expect()` implementation with custom matchers (`toHaveSucceeded`, `toHaveFailed`, `toHaveRunStep`, etc.). No Jest or Vitest dependency — not a hard dep, not a peer dep.
+**Decision.** `@actharness/matchers` ships actharness's **own** `expect()` implementation with custom matchers (`toHaveSucceeded`, `toHaveFailed`, `toHaveRunStep`, etc.). No test-framework dependency — not a hard dep, not a peer dep.
 
-**Why.** Requiring consumers to install Jest or Vitest just to use actspec's matchers creates two problems: (1) `jest.mock()`/`vi.mock()` alongside `action.mock()` is a conceptual collision — two mock surfaces with different mental models; (2) peer-dep version skew makes `expect.extend` fragile (matchers may register on the wrong instance). actspec's own `expect()` avoids both: one mock concept (`action.mock()`), zero peer-dep surface. `actspec test` injects `expect` into `globalThis`; direct import (`import { expect } from '@actspec/matchers'`) is also supported.
+**Why.** Coupling consumers to an external test framework just to use actharness's matchers creates two problems: (1) external mock APIs alongside `actharness.mock()` is a conceptual collision — two mock surfaces with different mental models; (2) peer-dep version skew makes `expect.extend` fragile (matchers may register on the wrong instance). actharness's own `expect()` avoids both: one mock concept (`actharness.mock()`), zero peer-dep surface. `actharness test` injects `expect` into `globalThis`; direct import (`import { expect } from '@actharness/matchers'`) is also supported.
 
-**Rejected.** Jest/Vitest peer dep with `expect.extend` — the original design; dropped because of mock-surface confusion and peer-dep fragility. A single bundled framework dependency — would force consumers onto a specific version.
+**Rejected.** Test-framework peer dep with `expect.extend` — the original design; dropped because of mock-surface confusion and peer-dep fragility. A single bundled framework dependency — would force consumers onto a specific version.
 
 **Enforced in.** [CONVENTIONS → Monorepo & packaging](CONVENTIONS.md#monorepo--packaging) · [matchers.md](../specs/modules/matchers.md) · [cli.md](../specs/modules/cli.md).
 
@@ -337,7 +337,7 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Rejected.** Mask only explicit `::add-mask::` — a secret passed via run input could leak into a committed snapshot.
 
-**Enforced in.** [PROTOCOL → Masking](PROTOCOL.md#what-actspec-implements) · [ARCHITECTURE → Runner protocol](ARCHITECTURE.md#runner-protocol) · API.md (secrets auto-masked).
+**Enforced in.** [PROTOCOL → Masking](PROTOCOL.md#what-actharness-implements) · [ARCHITECTURE → Runner protocol](ARCHITECTURE.md#runner-protocol) · API.md (secrets auto-masked).
 
 ## D30 — Ship a snapshot serializer
 
@@ -349,9 +349,9 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Enforced in.** [ARCHITECTURE → Typed actions & fixtures](ARCHITECTURE.md#typed-actions--fixtures) + [Diagnostics](ARCHITECTURE.md#diagnostics-that-explain-failures) · API.md §13.
 
-## D31 — One `ActspecError` hierarchy
+## D31 — One `ActharnessError` hierarchy
 
-**Decision.** A single base `ActspecError { code, source? }` with subclasses (`ExpressionError`, `MissingMockError`, `ParseError`, …); no bare `Error` across a package boundary; user-facing errors carry `action.yml:line:col`.
+**Decision.** A single base `ActharnessError { code, source? }` with subclasses (`ExpressionError`, `MissingMockError`, `ParseError`, …); no bare `Error` across a package boundary; user-facing errors carry `action.yml:line:col`.
 
 **Why.** Error quality is the product for a testing tool — consistent codes + source positions + typed `catch`.
 
@@ -359,13 +359,13 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 **Enforced in.** [CONVENTIONS → Errors & diagnostics](CONVENTIONS.md#errors--diagnostics) · API.md §13.
 
-## D32 — `actspec()` is synchronous
+## D32 — `actharness()` is synchronous
 
-**Decision.** `actspec()`/`actspecWorkflow()` parse synchronously and return a handle; all execution is async, on `run()`.
+**Decision.** `actharness()`/`actharnessWorkflow()` parse synchronously and return a handle; all execution is async, on `run()`.
 
 **Why.** Mocks chain before `run()`, parse errors surface immediately, and the simplest test stays one line. Parsing needs no async.
 
-**Rejected.** An async factory (`await actspec()`) — ceremony in every test body for no benefit.
+**Rejected.** An async factory (`await actharness()`) — ceremony in every test body for no benefit.
 
 **Enforced in.** API.md §1.
 
@@ -411,15 +411,15 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 ## D37 — Context & option default values
 
-**Decision.** Defaults (single-sourced in `@actspec/types`, imported by both `@actspec/core` and `@actspec/fixtures`; all overridable per run):
+**Decision.** Defaults (single-sourced in `@actharness/types`, imported by both `@actharness/core` and `@actharness/fixtures`; all overridable per run):
 - **github:** `actor`/`triggering_actor` `octocat`, `sha` 40×`0`, `ref` `refs/heads/main` (`ref_name` `main`, `ref_type` `branch`), `run_id`/`run_number`/`run_attempt` `1`; `repository` `'owner/repo'`, `repository_owner` `'owner'` (fixed synthetic — [D35](#d35--githubrepository-uses-a-fixed-synthetic-default)).
-- **runner:** `os` `Linux` ([D34](#d34--runneros-default-is-linux-overridable)), `arch` `X64` (fixed), `name` `actspec`, `tool_cache` `/opt/hostedtoolcache`, `environment` `github-hosted`.
+- **runner:** `os` `Linux` ([D34](#d34--runneros-default-is-linux-overridable)), `arch` `X64` (fixed), `name` `actharness`, `tool_cache` `/opt/hostedtoolcache`, `environment` `github-hosted`.
 - **run options:** `jobStatus` `success`, `diagnostics` `errors`, `workspace` `temp`, `isolation` `scoped`, `container` `mock` (v0.3).
-- **coverage:** `reporters` `['text','html']`, `coverageDir` `./coverage`.
+- **coverage:** `reporters` `['lcov', 'html', 'text']`, `coverageDir` `./coverage`.
 
-**Why.** Stable, obviously-synthetic defaults keep snapshots stable ([D17](#d17--determinism-frozen-by-default)) and the simplest test one line; each is overridable for the test that cares. `octocat` replaces the old library-name `actspec` for `actor`; `arch` stays a fixed `X64`, consistent with the fixed `runner.os`.
+**Why.** Stable, obviously-synthetic defaults keep snapshots stable ([D17](#d17--determinism-frozen-by-default)) and the simplest test one line; each is overridable for the test that cares. `octocat` replaces the old library-name `actharness` for `actor`; `arch` stays a fixed `X64`, consistent with the fixed `runner.os`.
 
-**Rejected.** Host-derived `arch` (non-deterministic). Git-HEAD `sha` (churns snapshots). Per-tool nested coverage dir (`./coverage/actspec`) — simplified to `./coverage`.
+**Rejected.** Host-derived `arch` (non-deterministic). Git-HEAD `sha` (churns snapshots). Per-tool nested coverage dir (`./coverage/actharness`) — simplified to `./coverage`.
 
 **Enforced in.** [CONTEXTS](CONTEXTS.md) · API.md §1/§9 · [types.md](../specs/modules/types.md) · [fixtures.md](../specs/modules/fixtures.md).
 
@@ -429,7 +429,7 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 - **v0.2** (node executor): `JsSandbox` (worker_thread), undici `MockAgent` for the GitHub API, c8 V8→Istanbul JS-line coverage.
 - **v0.3** (docker executor): `ContainerSandbox` backends (mock default / docker / podman).
 - **opt-in / later:** bash-line coverage (kcov/bashcov), expression sub-branch coverage (AST instrumentation).
-- **post-v0.1:** CLI `--record`/replay (needs the opt-in remote resolver), `@actspec/gen` codegen (`actspec gen`) — reserved (subcommand errors politely) until v0.1 is validated.
+- **post-v0.1:** CLI `--record`/replay (needs the opt-in remote resolver), `@actharness/gen` codegen (`actharness gen`) — reserved (subcommand errors politely) until v0.1 is validated.
 
 **Why.** Each is tied to a feature that doesn't exist in v0.1 (node=v0.2, docker=v0.3) or is deepening/ergonomics over a surface that must be proven first. Deferring keeps v0.1 focused — not workarounds, since v0.1 genuinely doesn't need them (the no-workarounds rule applies to what v0.1 *needs*).
 
@@ -439,7 +439,7 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 ## D39 — Faithful reproduction, including footguns, is binding
 
-**Decision.** actspec reproduces the runner's **observable** behavior faithfully — *including* its footguns (`run:` injection [[D22](#d22--run-substitution-is-literal-reproduce-the-injection-footgun)], advisory missing-required-input) — rather than "improving" on it. The specific behaviors (`INPUT_*` transform, expression coercion, protocol encoding/escaping, shell wrappers, pre/main/post ordering) are **dictated by the conformance corpora**, not independently chosen.
+**Decision.** actharness reproduces the runner's **observable** behavior faithfully — *including* its footguns (`run:` injection [[D22](#d22--run-substitution-is-literal-reproduce-the-injection-footgun)], advisory missing-required-input) — rather than "improving" on it. The specific behaviors (`INPUT_*` transform, expression coercion, protocol encoding/escaping, shell wrappers, pre/main/post ordering) are **dictated by the conformance corpora**, not independently chosen.
 
 **Why.** A faithful tester must let tests catch the action's real bugs (including unsafe behavior); sanitizing for "safety/convenience" would hide real issues and break the "matches the runner" promise. These are requirements, not free decisions — which is why category-C items aren't separately ratifiable.
 
@@ -459,16 +459,106 @@ semantic-release's *core* is solid but single-package; the monorepo layer (`mult
 
 ---
 
-## D41 — `@actspec/types` is the zero-dep DAG root: types + defaults
+## D41 — `@actharness/types` is the zero-dep DAG root: types + defaults
 
-**Decision.** Extract all public interfaces and default constants into a dedicated `@actspec/types` package with zero `@actspec/*` dependencies. `@actspec/core` imports from it and re-exports for consumers; `@actspec/fixtures` imports from it in place of its former `@actspec/core` types-only dep. This package sits at the bottom of the dependency DAG alongside `@actspec/expressions`.
+**Decision.** Extract all public interfaces and default constants into a dedicated `@actharness/types` package with zero `@actharness/*` dependencies. `@actharness/core` imports from it and re-exports for consumers; `@actharness/fixtures` imports from it in place of its former `@actharness/core` types-only dep. This package sits at the bottom of the dependency DAG alongside `@actharness/expressions`.
 
-**Why.** The previous design had `@actspec/fixtures` depending on `@actspec/core` for types, and `@actspec/core` depending on `@actspec/fixtures` for defaults — a circular dependency. Extracting types and defaults into a zero-dep package breaks the cycle cleanly: neither `core` nor `fixtures` depends on each other; both depend on `@actspec/types`. It also gives the "no package holds types except the types package" principle a concrete home — the shape of every public type is co-located with its default values, independently auditable.
+**Why.** The previous design had `@actharness/fixtures` depending on `@actharness/core` for types, and `@actharness/core` depending on `@actharness/fixtures` for defaults — a circular dependency. Extracting types and defaults into a zero-dep package breaks the cycle cleanly: neither `core` nor `fixtures` depends on each other; both depend on `@actharness/types`. It also gives the "no package holds types except the types package" principle a concrete home — the shape of every public type is co-located with its default values, independently auditable.
 
-**Rejected.** (a) `@actspec/core` owns defaults, `@actspec/fixtures` imports from core — breaks the circular dep but makes `fixtures` depend on `core`, heavier than needed for a pure-data package. (b) `peerDependencies` workaround — works but obscures the intended direction. (c) Alternate names (`@actspec/schema`, `@actspec/context-types`) — `@actspec/types` is the natural fit, freed by renaming the codegen package to `@actspec/gen` ([D38](#d38--explicit-deferrals-not-open-items)).
+**Rejected.** (a) `@actharness/core` owns defaults, `@actharness/fixtures` imports from core — breaks the circular dep but makes `fixtures` depend on `core`, heavier than needed for a pure-data package. (b) `peerDependencies` workaround — works but obscures the intended direction. (c) Alternate names (`@actharness/schema`, `@actharness/context-types`) — `@actharness/types` is the natural fit, freed by renaming the codegen package to `@actharness/gen` ([D38](#d38--explicit-deferrals-not-open-items)).
 
 **Enforced in.** [ARCHITECTURE → Package layout](ARCHITECTURE.md#package-layout-pnpm-monorepo) · [types.md](../specs/modules/types.md) · [core.md](../specs/modules/core.md) · [fixtures.md](../specs/modules/fixtures.md).
 
+## D42 — `action.runs.steps!` non-null assertion in `_buildZeroFileCoverage`
+
+**Decision.** Use `action.runs.steps!` (non-null assertion) in `_buildZeroFileCoverage` when building zero-coverage entries for unrun files.
+
+**Why.** `parseAction` (from `@actharness/core`) always returns a defined `steps` array — the spec guarantees it. The alternative `?? []` creates an unreachable code path, inflating coverage requirements with a branch that can never be exercised and misleading future readers into thinking the steps array can be absent.
+
+**Rejected.** `action.runs.steps ?? []` — creates a dead branch, forces a test for an impossible state, and obscures the `parseAction` contract.
+
+**Enforced in.** `packages/coverage/src/actharness-coverage.ts` · `_buildZeroFileCoverage`.
+
+## D43 — `no-restricted-globals: Date` ban scoped to src only
+
+**Decision.** ESLint's `no-restricted-globals: Date` ban applies only to `packages/*/src/**/*.ts`. Two exemptions are carved out: (1) `packages/core/src/determinism.ts` — this IS the injected-clock implementation and must call `new Date()` to construct the frozen clock object; (2) `packages/*/test/**/*.ts` — tests legitimately pass `Date` values to configure the injected clock under test (e.g. `run({ now: new Date('2024-01-01') })`).
+
+**Why.** The ban prevents non-deterministic clock reads from leaking into action execution logic ([D17](#d17--determinism-frozen-by-default)). `determinism.ts` cannot fulfill its contract without `new Date()`; test files are the configuration layer for the injected clock. Both are correct uses.
+
+**Rejected.** Applying the ban universally — breaks `determinism.ts` without an alternative. Rewriting `determinism.ts` to avoid `new Date()` — no alternative API exists for constructing the initial frozen clock value.
+
+**Enforced in.** `eslint.config.js` (override block for `determinism.ts` and `test/**/*.ts`).
+
+## D44 — `process.hrtime.bigint()` for temp-dir naming in the CLI
+
+**Decision.** The CLI uses `process.hrtime.bigint()` to generate a unique suffix for the coverage fragment temp dir, not `Date.now()`.
+
+**Why.** `Date.now()` triggers the `no-restricted-globals: Date` ban ([D43](#d43--no-restricted-globals-date-ban-scoped-to-src-only)). The temp-dir suffix is an infrastructure concern (uniqueness, not test logic), so a monotonic counter from `process.hrtime.bigint()` serves the same purpose without touching wall-clock time.
+
+**Rejected.** `Date.now()` — banned by the Date rule. `Math.random()` — also banned (the RNG determinism rule). A fixed name — would collide across concurrent workers.
+
+**Enforced in.** `packages/cli/src/commands/test.ts` (coverage temp-dir construction).
+
+## D45 — With-Inputs metric removed from coverage
+
+**Decision.** The `withInputs` coverage metric (tracking coverage of `with:` keys on `uses:` steps) was removed. `CoverageMetric` no longer includes a `withInputs` variant. All related types (`WithExerciseEntry`, `WithInputCoverageRow`), collector state, reporter output, and test fixtures were deleted.
+
+**Why.** `withInputs` is always redundant with step body coverage: if a step ran (`stepHits > 0`), all its `with:` keys were necessarily provided. There is no scenario where the step body executed but some `with:` key was not exercised. Tracking it separately adds a column and chip to every report without surfacing any coverage gap that `steps` doesn't already surface.
+
+**Rejected.** Keeping it as an optional, opt-in metric — opt-in surface that never fires is worse than no surface at all; it would survive as dead weight in the type system without ever being triggered by a real coverage gap.
+
+**Enforced in.** `packages/coverage/src/types.ts` · `packages/coverage/src/collector.ts` · `packages/coverage/src/html-reporter.ts` · `packages/coverage/src/text-reporter.ts`.
+
+## D46 — Step header badge vs body badge use separate counters
+
+**Decision.** The coverage collector tracks **two distinct counters per step**: `stepHits[id]` (body: incremented when `ran === true`, for all steps) and `stepReached[id]` (header: incremented according to `if:` type — for explicit-`if:` steps, incremented on every appearance regardless of outcome; for no-`if:` / `success()` steps, incremented only when `ran === true`).
+
+**Why.** GitHub Actions has two distinct evaluation semantics: a step with an explicit `if:` (e.g. `if: failure()`) always evaluates — the step is "reached" even when the condition resolves false and the body is skipped. A no-`if:` step (implicit `success()`) is not reached at all when the job is in a failure state — the runner shortcuts the whole step. Using the same counter for both would either conflate "condition evaluated" with "body executed" (losing precision for explicit-`if:` steps) or overstate reach for no-`if:` steps. The split lets the HTML reporter show meaningful header (×N reached) and body (×M ran) badges independently.
+
+**Rejected.** Single counter for both — conflates two semantically distinct execution modes. Always using `ran === true` for the header counter — would incorrectly show ×0 for explicit-`if:` steps that evaluated but skipped, hiding the fact that the condition was exercised.
+
+**Enforced in.** `packages/coverage/src/collector.ts` (`createListener` → `_stepReachedData`) · `packages/coverage/src/html-reporter.ts` (header uses `ann.reached`, body uses `ann.hits`).
+
+## D47 — Output coverage detection uses step-output regex, falls back to result presence
+
+**Decision.** `_isOutputProduced` in the coverage collector first checks whether the output's `value:` expression matches `${{ steps.<id>.outputs.<key> }}` (via `STEP_OUTPUT_RE`). If it matches, it checks `outputKey in stepResult.outputs` (presence check, not truthiness). For all other expressions, it falls back to `!!result.outputs[name]` (truthy check on the final run result).
+
+**Why.** An output set via `echo "name=x" >> $GITHUB_OUTPUT` may produce an empty string, which is falsy — `!!result.outputs[name]` would incorrectly mark a legitimately produced empty-string output as uncovered. For step-sourced outputs, checking key presence rather than value truthiness gives the correct answer: the step produced the output if and only if the key exists in its outputs object. Non-step-sourced outputs (context references, literals) retain the fallback because they have no step result to inspect presence on.
+
+**Rejected.** Pure `!!result.outputs[name]` for all cases — incorrectly marks empty-string outputs as uncovered. Presence check for all outputs — no step result to query presence on for non-step-sourced expressions.
+
+**Enforced in.** `packages/coverage/src/collector.ts` (`_isOutputProduced`).
+
+## D48 — `actharness('./relative')` resolves relative to the calling file via stack trace
+
+**Decision.** When `source` starts with `./` or `../`, `actharness()` resolves the path relative to the **calling file's directory** by inspecting `new Error().stack`. The stack walk skips the internal `actharness` frame and any `node_modules` frames, then extracts the first real caller path using a regex that matches both `file:///path:N:N` (Node.js ESM) and `(/path:N:N)` (tsx/CLI) stack formats. Falls back to `process.cwd()` only when no caller frame is found.
+
+**Why.** `actharness('./action.yml')` should always find the action next to the test file, regardless of the working directory the CLI was invoked from. `__dirname` and `import.meta.url` are unavailable in test files that use actharness as a global (injected by the CLI, not imported) — stack-trace inspection is the only mechanism that works uniformly in both the global and the direct-import case.
+
+**Rejected.** Requiring absolute paths — unergonomic; callers shouldn't need `path.join(__dirname, './action.yml')`. Using `process.cwd()` as the default base — breaks when the CLI is invoked from a different directory than the test file. `import.meta.url` — unavailable when `actharness` is a CLI-injected global.
+
+**Enforced in.** `packages/core/src/action-runner.ts` (`_dirFromStack` + `actharness()`) · `packages/core/test/action-runner.test.ts`.
+
+## D49 — `ActharnessFn` type exported from the meta-package; `actharness.mock()` is the global mock surface
+
+**Decision.** The `actharness` export from the `actharness` meta-package is typed as `ActharnessFn` — a callable that also carries `.mock()` and `.resetMocks()` as properties. Mocking is a property of the **`actharness` function itself**, not of the `Action` handle returned by calling it. The `Action` interface exposes only `manifest`, `type`, and `run()`.
+
+**Why.** `action.mock()` implied per-action mock registries, but the implementation uses a single shared registry (populated by the CLI's `register.ts` step via `Object.assign(actharness, { mock, resetMocks })`). Typing it correctly as `ActharnessFn` means test files that `import { actharness } from 'actharness'` get the full mock surface without casting. Keeping the `Action` interface free of mock methods also keeps it honest — a handle only represents one loaded manifest, not a mock registry.
+
+**Rejected.** `mock()` on the `Action` handle — implies per-action isolation that doesn't exist; the shared registry applies to all `run()` calls in the test file. Duplicating the `ActharnessFn` definition in `globals.d.ts` — single source of truth: `globals.d.ts` imports the type from `actharness`.
+
+**Enforced in.** `packages/actharness/src/index.ts` (`ActharnessFn` type + cast) · `packages/actharness/globals.d.ts` (imports `ActharnessFn` from `actharness`) · API.md §2.
+
+## D50 — `expect(StepResult | undefined)` overload; undefined throws a clear error
+
+**Decision.** `expect()` in `@actharness/matchers` accepts `StepResult | undefined` as the second overload. When `undefined` is passed (i.e. `result.step('id')` returned `undefined` because the step was not found), every matcher on the returned handle throws `"Expected step to exist, but step was not found"` rather than a confusing `TypeError` from a null dereference.
+
+**Why.** `result.step(id)` returns `StepResult | undefined` by design — the correct TypeScript return type. Without the overload, callers must write `result.step('id')!` (non-null assertion) to satisfy the type checker, which silently crashes with a bad `id`. The overload lets `expect(result.step('id'))` type-check cleanly and fail with a meaningful message when the step is absent.
+
+**Rejected.** Requiring `result.step('id')!` at every call site — forces non-null assertions that hide the "step not found" case. Throwing at `expect()` call time — would fail before the matcher is invoked, losing the ability to chain `.not`.
+
+**Enforced in.** `packages/matchers/src/expect.ts` (`buildStepResultHandle` + overloads) · `packages/actharness/globals.d.ts` (global `expect` overload) · `packages/matchers/test/matchers.test.ts` (two coverage cases).
+
 ---
 
-*Recorded during an explicit decision session on 2026-06-05, before any v0.1 implementation. All decisions are ratified with the maintainer and mirrored inline in the specs/docs linked above: D1–D6 resolved under-specified seams; D7–D14 are project/tooling; D15–D39 ratify architecture, strategy, defaults, and explicit deferrals. D40 added post-session from the workflow spike (H3 finding). D41 added during doc review: shared types package breaks the fixtures ↔ core circular dependency; codegen package renamed to `@actspec/gen`.*
+*Recorded during an explicit decision session on 2026-06-05, before any v0.1 implementation. All decisions are ratified with the maintainer and mirrored inline in the specs/docs linked above: D1–D6 resolved under-specified seams; D7–D14 are project/tooling; D15–D39 ratify architecture, strategy, defaults, and explicit deferrals. D40 added post-session from the workflow spike (H3 finding). D41 added during doc review: shared types package breaks the fixtures ↔ core circular dependency; codegen package renamed to `@actharness/gen`. D42–D44 added during v0.1 implementation: coverage `parseAction` contract, ESLint Date-ban scoping, and CLI temp-dir naming. D45–D47 added during With-Inputs removal: metric redundancy rationale, step header/body counter semantics, and output detection logic. D48–D50 added during v0.1 fixture integration: stack-trace relative path resolution for `actharness('./path')`, `ActharnessFn` type and global mock surface on `actharness.*` (not `action.*`), and `expect(StepResult | undefined)` overload design.*

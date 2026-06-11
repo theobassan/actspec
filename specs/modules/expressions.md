@@ -1,12 +1,12 @@
-# `@actspec/expressions`
+# `@actharness/expressions`
 
-The `${{ … }}` engine. **Standalone** (zero `@actspec/*` deps) and independently publishable — it's valuable to the wider community. The hardest module, and the one most likely to be subtly wrong; it is spec'd from source truth, not memory.
+The `${{ … }}` engine. **Standalone** (zero `@actharness/*` deps) and independently publishable — it's valuable to the wider community. The hardest module, and the one most likely to be subtly wrong; it is spec'd from source truth, not memory.
 
 ## Owns (public types)
 [API.md §7](../../docs/API.md): `evaluate`, `evaluateTemplate`, `tokenize`, `parse`, `ExpressionContexts`, `ExprValue`.
 
 ## Depends on
-Nothing (no `@actspec/*`, ideally no runtime deps).
+Nothing (no `@actharness/*`, ideally no runtime deps).
 
 ## Behavior (MUST)
 **The complete normative spec is [docs/EXPRESSIONS.md](../../docs/EXPRESSIONS.md).** It is binding. Highlights that trip up every naïve port (all grounded in the C# runner source):

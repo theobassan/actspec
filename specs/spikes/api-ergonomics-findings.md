@@ -91,9 +91,9 @@ No v0.1-blocking changes. All three items are additive.
 
 ## 5. API.md diff — no v0.1-blocking changes
 
-All proposed changes are additive (new matchers) or clarifications (existing prose). No existing API surface changes. API.md requires no modification before building `@actspec/matchers`.
+All proposed changes are additive (new matchers) or clarifications (existing prose). No existing API surface changes. API.md requires no modification before building `@actharness/matchers`.
 
-The two nice-to-have matchers (`toHaveStepStdout`, `toHaveStepOutcome`) should be added to [specs/modules/matchers.md](../modules/matchers.md) and [API.md §6](../../docs/API.md) before `@actspec/matchers` is published, to make the set feel complete.
+The two nice-to-have matchers (`toHaveStepStdout`, `toHaveStepOutcome`) should be added to [specs/modules/matchers.md](../modules/matchers.md) and [API.md §6](../../docs/API.md) before `@actharness/matchers` is published, to make the set feel complete.
 
 ---
 
@@ -101,7 +101,7 @@ The two nice-to-have matchers (`toHaveStepStdout`, `toHaveStepOutcome`) should b
 
 **No blocking friction found.** The spike's executors and test files are promoted as the starting point for the main codebase (`spike/api-ergonomics/src/` → `packages/`). API.md is confirmed as-is.
 
-Two matchers to add before shipping `@actspec/matchers`: `toHaveStepStdout` and `toHaveStepOutcome`. Both are additive — existing tests require no changes.
+Two matchers to add before shipping `@actharness/matchers`: `toHaveStepStdout` and `toHaveStepOutcome`. Both are additive — existing tests require no changes.
 
 **Important — evolved versions:** the workflow spike (`spike/workflow/`) directly extended this spike. For four files, `spike/workflow/src/` is the more up-to-date starting point and should be used instead:
 

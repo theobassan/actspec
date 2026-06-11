@@ -1,0 +1,12 @@
+name: Uses With
+runs:
+  using: composite
+  steps:
+    - id: greet-step
+      uses: actions/greet@v1
+      with:
+        name: World
+        token: ${{ inputs.token }}
+    - uses: actions/other@v1
+      with:
+        foo: bar

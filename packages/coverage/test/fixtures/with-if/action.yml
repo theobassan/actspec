@@ -1,0 +1,16 @@
+name: With If
+inputs:
+  greeting:
+    description: Who to greet
+    default: World
+runs:
+  using: composite
+  steps:
+    - id: step1
+      if: ${{ inputs.greeting != '' }}
+      shell: bash
+      run: echo hi
+    - id: step2
+      if: success()
+      shell: bash
+      run: echo done

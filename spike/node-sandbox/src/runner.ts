@@ -98,7 +98,7 @@ function buildEnv(manifest: ActionManifest, options: RunOptions): Record<string,
 
   return {
     // Minimal GitHub context — enough for @actions/github context.repo to work.
-    GITHUB_REPOSITORY: options.github?.repository ?? 'actspec/test-repo',
+    GITHUB_REPOSITORY: options.github?.repository ?? 'actharness/test-repo',
     GITHUB_TOKEN: options.github?.token ?? 'ghs_fakefakefake',
     GITHUB_SHA: 'aabbccddaabbccddaabbccddaabbccddaabbccdd',
     GITHUB_REF: 'refs/heads/main',

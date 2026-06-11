@@ -10,7 +10,7 @@ import { evaluate } from '../src/index.js';
 //   b.txt            → 'content-b'
 //   sub/c.ts         → 'content-c'
 //   sub/deep/e.ts    → 'content-e'
-const WORKSPACE = join(tmpdir(), `actspec-hf-${process.pid}`);
+const WORKSPACE = join(tmpdir(), `actharness-hf-${process.pid}`);
 
 function sha256(data: string): Buffer {
   return createHash('sha256').update(Buffer.from(data, 'utf8')).digest();

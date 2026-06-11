@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@actspec/expressions': path.resolve(__dirname, '../expressions/src/index.ts'),
+      '@actharness/expressions': path.resolve(__dirname, '../expressions/src/index.ts'),
       'workflow-spike': path.resolve(__dirname, '../workflow/src/index.ts'),
     },
   },

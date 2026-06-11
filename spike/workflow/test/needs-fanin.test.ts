@@ -1,11 +1,11 @@
 // Tests for fixtures/ci.yml — H1 (StepRunner reuse), H2 (ContextStore extension),
 // H3 (JobResult extends RunResult), H4 (WorkflowResult composes with matchers),
-// H5 (actspecWorkflow is a pure add).
+// H5 (actharnessWorkflow is a pure add).
 
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspecWorkflow } from '../src/index.js';
+import { actharnessWorkflow } from '../src/index.js';
 import type { Workflow } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,7 +15,7 @@ describe('needs: fan-in (ci.yml)', () => {
   let wf: Workflow;
 
   beforeEach(() => {
-    wf = actspecWorkflow(CI);
+    wf = actharnessWorkflow(CI);
   });
 
   // H1: StepRunner reuse — job steps run via the same composite executor.
@@ -54,7 +54,7 @@ describe('needs: fan-in (ci.yml)', () => {
     expect(result.job('deploy')!).toHaveRunStep('ship');
   });
 
-  // H5: actspecWorkflow() is a pure add — no imports from actspec() changed.
+  // H5: actharnessWorkflow() is a pure add — no imports from actharness() changed.
   test('needs: output accessible from job outputs expression (H5)', async () => {
     const result = await wf.run();
     // deploy job declares: outputs.deployed: ${{ needs.build.outputs.artifact }}

@@ -1,0 +1,24 @@
+name: Mock Dynamic
+description: Shows dynamic mock implementations, re-stubbing, unmock, and resetMocks.
+author: actharness
+
+outputs:
+  first-response:
+    description: Response from the first API call
+    value: ${{ steps.first-call.outputs.response }}
+  second-response:
+    description: Response from the second API call
+    value: ${{ steps.second-call.outputs.response }}
+
+runs:
+  using: composite
+  steps:
+    - id: first-call
+      uses: actions/api@v1
+      with:
+        endpoint: "/users"
+
+    - id: second-call
+      uses: actions/api@v1
+      with:
+        endpoint: "/status"

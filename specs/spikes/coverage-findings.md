@@ -1,7 +1,7 @@
 # Spike findings — coverage map + reporter pipeline
 
 > Spike: [`spike/coverage/`](../../spike/coverage/) · Spec: [`specs/spikes/coverage.md`](coverage.md) · Date: 2026-06-07
-> Runner re-run: same spike, same fixtures — tests ported from Vitest/Jest to actspec runner. All 35 tests pass.
+> Runner re-run: same spike, same fixtures — tests ported from Vitest/Jest to actharness runner. All 35 tests pass.
 
 ## H1–H10 verdicts
 
@@ -9,9 +9,9 @@
 |---|---|---|
 | H1 — Istanbul-from-YAML map is valid | ✅ | `FileCoverageData` with YAML line ranges accepted; merge, text, html, json all work |
 | H2 — HTML reporter renders `action.yml` | ✅ | `index.html` produced with `action.yml` in table; per-line highlights rendered (not semantic) |
-| H3 — Disk-first fragment works in Vitest | ✅ | Original: `afterAll` flush + `globalTeardown`. Now also proven under actspec runner via `process.on('exit', ...)` (simpler — see §4) |
-| H4 — Disk-first fragment works in Jest | ✅ | Original: `process.on('beforeExit')` + CJS `globalTeardown`. Under actspec runner, no distinction needed — same `process.on('exit', ...)` flush works for all |
-| H5 — `registerRunListener` fires within workers (both) | ✅ | Fires in Vitest, Jest, and actspec runner workers. Under actspec runner: module instance sharing via Node.js ESM cache is the mechanism |
+| H3 — Disk-first fragment works in Vitest | ✅ | Original: `afterAll` flush + `globalTeardown`. Now also proven under actharness runner via `process.on('exit', ...)` (simpler — see §4) |
+| H4 — Disk-first fragment works in Jest | ✅ | Original: `process.on('beforeExit')` + CJS `globalTeardown`. Under actharness runner, no distinction needed — same `process.on('exit', ...)` flush works for all |
+| H5 — `registerRunListener` fires within workers (both) | ✅ | Fires in Vitest, Jest, and actharness runner workers. Under actharness runner: module instance sharing via Node.js ESM cache is the mechanism |
 | H6 — Parallel safety | ✅ | Two workers write two fragments; merged report contains both; no double-counting. Proven under all three runners |
 | H7 — Threshold enforcement | ✅ | `ifBranches: 100` with one direction unexercised fails with message `Branches: 50% < 100% (1/2)` |
 | H8 — `nyc merge` interop | ✅ | YAML-sourced map merges with toy JS map via `createCoverageMap.merge()`; counts preserved |
@@ -29,9 +29,9 @@
 | 3 | HTML rendering of YAML source | Reporter renders the file without crashing | Produces `index.html` with `action.yml` in the coverage table, covered/uncovered line bars, and correct percentages. Istanbul treats `.yml` as an opaque source file — no YAML syntax highlighting. The report is mechanically correct and usable; visual quality is lower than JS reports but sufficient for coverage tracking. | no change needed |
 | 4 | Listener fires inside Vitest worker | `setupFiles` listener notified for every `run()` | `afterAll` is available in `globalThis` during Vitest's `setupFiles`. Listener registered via `afterAll`; fires cleanly after each test file. No silent drops. | no change needed |
 | 5 | Listener fires inside Jest worker | Same as probe #4, under Jest | `afterAll` is NOT in `globalThis` when `setupFiles` runs in Jest (globals injected after). Falls back to `process.on('beforeExit')`. Listener fires and fragment is flushed before worker exits. At test execution time, `afterAll` IS available as a Jest global. | no change needed |
-| 6 | Worker teardown timing | Fragment flushed before worker exits | In Vitest: `afterAll` fires reliably. In Jest: `process.on('beforeExit')` fires reliably. **Under actspec runner**: `process.on('exit', ...)` fires reliably — simpler than either (see §4). | no change needed |
+| 6 | Worker teardown timing | Fragment flushed before worker exits | In Vitest: `afterAll` fires reliably. In Jest: `process.on('beforeExit')` fires reliably. **Under actharness runner**: `process.on('exit', ...)` fires reliably — simpler than either (see §4). | no change needed |
 | 7 | `globalTeardown` lifecycle in Vitest | Fires after all workers complete; can read temp files | ESM `globalTeardown` (`teardown/merge.vitest.ts`) fires after all workers finish. Reads all fragment JSON files, merges via `istanbul-lib-coverage`, writes configured reporters. No lifecycle friction. | no change needed |
-| 8 | `globalTeardown` lifecycle in Jest | Same, under Jest | Jest `globalTeardown` must be a CJS file — Jest does not run `globalTeardown` through `ts-jest` or `moduleNameMapper`. Created `teardown/merge.jest.cjs` as native CJS. Fragments present and merged. **Under actspec runner: no `globalTeardown` file at all — the runner CLI's `for await` loop end is the teardown signal.** | design gap resolved under actspec runner |
+| 8 | `globalTeardown` lifecycle in Jest | Same, under Jest | Jest `globalTeardown` must be a CJS file — Jest does not run `globalTeardown` through `ts-jest` or `moduleNameMapper`. Created `teardown/merge.jest.cjs` as native CJS. Fragments present and merged. **Under actharness runner: no `globalTeardown` file at all — the runner CLI's `for await` loop end is the teardown signal.** | design gap resolved under actharness runner |
 | 9 | `nyc merge` with YAML map | `coverage-final.json` with `.yml` paths accepted by `nyc merge` | `createCoverageMap.merge()` accepts a map whose keys are `.yml` file paths alongside `.js` paths. No error, no rejection. Counts accumulate correctly. Istanbul does not validate that "source files" are JavaScript. | no change needed |
 | 10 | Threshold on partial branch | Suite fails when branch direction unexercised; passes otherwise | `checkThresholds(map, { ifBranches: 100 })` returns `passed: false` with message `Branches: 50% < 100% (1/2)` when only one branch direction is exercised. Threshold at 50% passes the same data. Mechanism is observable and actionable. | no change needed |
 | 11 | V8 coverage from `worker_threads` | `setter/index.js` line coverage in fragment after node action run | Inspector API approach (probe #11) proven ✅ under all runners. `NODE_V8_COVERAGE` env on the Worker constructor does not work (threads share the host V8 process). Inspector session inside the thread works — `Profiler.takePreciseCoverage` returns data for all scripts executed in the thread. | no change needed |
@@ -39,7 +39,7 @@
 | 13 | CJS istanbul packages under ESM `"type": "module"` | `import { createCoverageMap } from 'istanbul-lib-coverage'` works | **Does not work.** Named imports from CJS packages fail in native ESM at runtime even when TypeScript accepts them. Must use `import default from 'istanbul-lib-coverage'; const { createCoverageMap } = default`. Created `src/istanbul-compat.ts` bridge to centralize the pattern and preserve TypeScript types. | spec note: `docs/CONVENTIONS.md` should document CJS bridge pattern |
 | 14 | `--import` module as coverage plugin entry point | `coverage-register.ts` plugged in via `--import ./src/coverage-register.ts` CLI arg | Works. The runner CLI's `--import <path>` args are resolved to file URLs and passed to each worker's `execArgv`. The coverage register module (`coverage-register.ts`) is loaded in every worker via this mechanism — same ESM module cache entry as test files that import from `../src/coverage-register.js`. | no change needed |
 | 15 | Worker bootstrap as `.ts` file | Use `import.meta.url` to reference `worker-bootstrap.ts` directly | **Does not work.** Node.js rejects `.ts` as a `worker_threads` Worker entry filename even when `--import tsx/esm` is in `execArgv` — the file extension check happens before the `--import` hooks are processed. Solution: `worker-bootstrap.mjs` (plain ESM JavaScript, no TypeScript needed since only Node.js built-ins are used). | spec note: Worker bootstrap must be `.mjs` or `.cjs`, not `.ts` |
-| 16 | Inner Worker `execArgv` isolation | Action's worker doesn't load actspec's `register.ts` | The `worker_threads` Worker inherits the parent process's `execArgv` by default, which includes `--import register.ts`. This causes a failure when the inner Worker tries to load `register.ts` — either tsx is not active in that context, or `node:test` imports fail inside threads. **Fix**: explicitly set `execArgv: ['--import', 'tsx/esm']` on the Worker in `node.ts`, suppressing all actspec-specific imports. | spec note: action workers must have explicit `execArgv` |
+| 16 | Inner Worker `execArgv` isolation | Action's worker doesn't load actharness's `register.ts` | The `worker_threads` Worker inherits the parent process's `execArgv` by default, which includes `--import register.ts`. This causes a failure when the inner Worker tries to load `register.ts` — either tsx is not active in that context, or `node:test` imports fail inside threads. **Fix**: explicitly set `execArgv: ['--import', 'tsx/esm']` on the Worker in `node.ts`, suppressing all actharness-specific imports. | spec note: action workers must have explicit `execArgv` |
 
 ---
 
@@ -67,7 +67,7 @@ One: `BranchMapping.line`. The TypeScript type definition requires it; the prope
 
 ## §4 Disk-first + teardown lifecycle — per runner
 
-### Actspec runner (canonical going forward)
+### Actharness runner (canonical going forward)
 
 **Fragment flush mechanism:** `coverage-register.ts` is loaded via `--import ./src/coverage-register.ts` on the runner CLI. The runner's CLI resolves the path to an absolute file URL and adds it to each worker's `execArgv` alongside tsx and its own `register.ts`:
 
@@ -83,17 +83,17 @@ execArgv: ['--import', 'tsx/esm', '--import', registerUrl, '--import', coverageR
 
 Inside each worker subprocess, `coverage-register.ts` runs once. It creates a `CoverageCollector`, registers it on the run sink, and registers `process.on('exit', () => writeFragment(...))`. Because `node:test` workers are real child processes (not `worker_threads`), `process.on('exit', ...)` fires reliably after all tests in the file complete (proven in runner spike H6).
 
-**Module instance sharing:** `coverage-register.ts` is loaded via `--import file:///absolute/path`. Node.js ESM caches by URL. When a test file imports `import { collector } from '../src/coverage-register.js'`, tsx resolves `.js` → `.ts`, which gives the same absolute file URL as the `--import` entry. Both refer to the **same module instance** — no separate collector. This is the D1 mechanism: the `Symbol.for('actspec.runSink')` global ensures `actspec()` calls and the collector share state even across separate imports.
+**Module instance sharing:** `coverage-register.ts` is loaded via `--import file:///absolute/path`. Node.js ESM caches by URL. When a test file imports `import { collector } from '../src/coverage-register.js'`, tsx resolves `.js` → `.ts`, which gives the same absolute file URL as the `--import` entry. Both refer to the **same module instance** — no separate collector. This is the D1 mechanism: the `Symbol.for('actharness.runSink')` global ensures `actharness()` calls and the collector share state even across separate imports.
 
 **Merge:** The runner CLI's `for await (const event of stream)` loop ends exactly when all workers have exited and all fragments are on disk. The coverage merge happens after the loop — no `globalTeardown` file, no separate lifecycle hook. The runner's `--coverage` flag triggers the merge; the `--import coverage-register.ts` flag enables per-worker collection. Both are independent and composable.
 
-**Result:** The Vitest/Jest-era complexities (runner detection, `afterAll`-or-`beforeExit` heuristic, CJS `globalTeardown` files) are entirely eliminated under the actspec runner.
+**Result:** The Vitest/Jest-era complexities (runner detection, `afterAll`-or-`beforeExit` heuristic, CJS `globalTeardown` files) are entirely eliminated under the actharness runner.
 
 ### Vitest (original)
 
-Fragment flush mechanism: `afterAll` registered in `setupFiles`. Vitest injects test globals (including `afterAll`) into `globalThis` before running `setupFiles`, so the hook is available at registration time. After each test file's worker completes its tests, `afterAll` fires, `writeFragment()` serializes the collector's Istanbul map to a JSON file in `ACTSPEC_COVERAGE_TMP`.
+Fragment flush mechanism: `afterAll` registered in `setupFiles`. Vitest injects test globals (including `afterAll`) into `globalThis` before running `setupFiles`, so the hook is available at registration time. After each test file's worker completes its tests, `afterAll` fires, `writeFragment()` serializes the collector's Istanbul map to a JSON file in `ACTHARNESS_COVERAGE_TMP`.
 
-`globalTeardown` (`teardown/merge.vitest.ts`): ESM TypeScript, runs after all workers. Reads all `.json` files from `ACTSPEC_COVERAGE_TMP`, merges via `createCoverageMap`, runs `text` / `html` / `json` reporters. No lifecycle friction.
+`globalTeardown` (`teardown/merge.vitest.ts`): ESM TypeScript, runs after all workers. Reads all `.json` files from `ACTHARNESS_COVERAGE_TMP`, merges via `createCoverageMap`, runs `text` / `html` / `json` reporters. No lifecycle friction.
 
 ### Jest (original)
 
@@ -109,7 +109,7 @@ Fragment flush mechanism: `process.on('beforeExit')` registered in `setupFiles`.
 
 **Bootstrap format:** The worker bootstrap is `worker-bootstrap.mjs` (plain ESM JavaScript). A `.ts` bootstrap was attempted first — it fails because Node.js checks the Worker entry file's extension before processing `--import` hooks in `execArgv`. `.mjs` is recognized natively; no tsx required since the bootstrap only uses Node.js built-in APIs.
 
-**Worker `execArgv` isolation:** The inner Worker is given `execArgv: ['--import', 'tsx/esm']` explicitly. This prevents the actspec `register.ts` and `coverage-register.ts` chain from being loaded inside the action's worker thread, where they have no purpose and their imports (`node:test`, etc.) can cause failures.
+**Worker `execArgv` isolation:** The inner Worker is given `execArgv: ['--import', 'tsx/esm']` explicitly. This prevents the actharness `register.ts` and `coverage-register.ts` chain from being loaded inside the action's worker thread, where they have no purpose and their imports (`node:test`, etc.) can cause failures.
 
 **HTML output:** The action's `.js` file appears as a separate row in Istanbul's coverage table alongside `action.yml`. The per-file detail page shows the JS source with standard Istanbul line highlights — identical to normal JS coverage output. No renderer changes needed.
 
@@ -134,23 +134,23 @@ No `branchMap` entries are created for jobs in this spike — jobs do not have `
 | Worker inspector coverage for H9 | `docs/ARCHITECTURE.md → Sandboxes`, `docs/DECISIONS.md D1` | `NODE_V8_COVERAGE` does not work in worker threads; inspector API is the correct approach | High — H9 gate criterion | **Done** — implemented in `worker-bootstrap.mjs` + `node.ts` |
 | CJS bridge for istanbul packages | `docs/CONVENTIONS.md` | `istanbul-lib-*` are CJS; named imports fail in `"type": "module"` packages. Pattern: `import default from 'pkg'; const { fn } = default`. Centralize in `src/istanbul-compat.ts` so each caller uses named imports | Medium — affects all packages that import istanbul | **Done** — `src/istanbul-compat.ts` created; `collector.ts` and `istanbul-map.ts` updated |
 | Worker bootstrap must be `.mjs` | `docs/ARCHITECTURE.md → Sandboxes` | Node.js extension check happens before `--import` hooks fire; `.ts` Worker bootstrap fails even with `--import tsx/esm` in `execArgv`. Use `.mjs` for Worker entry files | Medium — Worker entry file format constraint | **Done** — `worker-bootstrap.mjs` replaces `worker-bootstrap.cjs` |
-| Coverage plugs into runner via `--import` | `specs/modules/coverage.md`, `docs/ARCHITECTURE.md` | `@actspec/coverage` will ship a register module that users add via `actspec test --import @actspec/coverage/register`. No `globalTeardown` or runner-specific setup needed. Runner CLI's `--import <path>` arg support is sufficient | High — core integration model | **Done** — proven in spike with `--import ./src/coverage-register.ts` |
-| Explicit `execArgv` on action Worker | `docs/ARCHITECTURE.md → Sandboxes` | The inner `worker_threads` Worker must not inherit actspec's `--import` chain. `execArgv: ['--import', 'tsx/esm']` is the correct isolation. | High — correctness | **Done** — set in `node.ts` `spawnWorker()` |
-| Document flush-mechanism under actspec runner | `specs/modules/coverage.md` | `process.on('exit', ...)` replaces `afterAll`/`beforeExit` under node:test child processes. No runner detection needed. | Low — supersedes H3/H4 Vitest/Jest complexity | **Done** — documented in §4 |
-| Job `if:` guard branches | `specs/modules/coverage.md` | This spike only models jobs as statements; job-level `if:` is common in real workflows | Low — not a gate; add in first `@actspec/coverage` build | Pending |
+| Coverage plugs into runner via `--import` | `specs/modules/coverage.md`, `docs/ARCHITECTURE.md` | `@actharness/coverage` will ship a register module that users add via `actharness test --import @actharness/coverage/register`. No `globalTeardown` or runner-specific setup needed. Runner CLI's `--import <path>` arg support is sufficient | High — core integration model | **Done** — proven in spike with `--import ./src/coverage-register.ts` |
+| Explicit `execArgv` on action Worker | `docs/ARCHITECTURE.md → Sandboxes` | The inner `worker_threads` Worker must not inherit actharness's `--import` chain. `execArgv: ['--import', 'tsx/esm']` is the correct isolation. | High — correctness | **Done** — set in `node.ts` `spawnWorker()` |
+| Document flush-mechanism under actharness runner | `specs/modules/coverage.md` | `process.on('exit', ...)` replaces `afterAll`/`beforeExit` under node:test child processes. No runner detection needed. | Low — supersedes H3/H4 Vitest/Jest complexity | **Done** — documented in §4 |
+| Job `if:` guard branches | `specs/modules/coverage.md` | This spike only models jobs as statements; job-level `if:` is common in real workflows | Low — not a gate; add in first `@actharness/coverage` build | Pending |
 | Filter `test:pass` to leaf tests | `specs/modules/cli.md` | `node:test` emits suite-level pass events alongside leaf test events | Low — formatting only | Pending |
 
 ---
 
 ## Exit decision
 
-**All 10 hypotheses pass under the actspec runner. 35/35 tests pass.**
+**All 10 hypotheses pass under the actharness runner. 35/35 tests pass.**
 
-The coverage lifecycle under the actspec runner is simpler than the Vitest/Jest lifecycle:
+The coverage lifecycle under the actharness runner is simpler than the Vitest/Jest lifecycle:
 
 - One `--import` arg to the CLI → collector registered in every worker.
 - `process.on('exit', ...)` → fragment written on worker exit (no `afterAll`/`beforeExit` heuristic).
 - Runner's `for await` loop end → host merges fragments (no `globalTeardown` file).
 - Module instance sharing via ESM URL cache → test files see the same collector as the register module.
 
-**Proceed to build `@actspec/coverage`** per [coverage.md](../modules/coverage.md). The `--import` plugin model, `process.on('exit')` flush, and `src/istanbul-compat.ts` CJS bridge are the canonical patterns.
+**Proceed to build `@actharness/coverage`** per [coverage.md](../modules/coverage.md). The `--import` plugin model, `process.on('exit')` flush, and `src/istanbul-compat.ts` CJS bridge are the canonical patterns.

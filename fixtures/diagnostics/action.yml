@@ -1,0 +1,45 @@
+name: Diagnostics
+description: Exercises failures, annotations, step outputs, continue-on-error, and mock call counts.
+author: actharness
+
+inputs:
+  fail:
+    description: When true, the abort step runs and fails the action.
+    default: "false"
+
+outputs:
+  tag:
+    description: Tag computed by the compute step
+    value: ${{ steps.compute.outputs.tag }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      run: |
+        echo "tag=v1.0.0" >> "$GITHUB_OUTPUT"
+        echo "computing..." >&2
+        echo "::warning::low disk space"
+
+    - id: fetch
+      uses: actions/http-get@v1
+      with:
+        url: "https://api.example.com/data"
+
+    - id: retry
+      uses: actions/http-get@v1
+      with:
+        url: "https://api.example.com/retry"
+
+    - id: flaky
+      continue-on-error: true
+      shell: bash
+      run: exit 1
+
+    - id: abort
+      if: ${{ inputs.fail == 'true' }}
+      shell: bash
+      run: |
+        echo "::error::abort requested"
+        exit 1

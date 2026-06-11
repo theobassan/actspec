@@ -4,7 +4,10 @@
 node_modules/
 dist/
 temp/
+coverage/
+!packages/coverage/
+!spike/coverage/
 
-.DS_Store
+*.DS_Store
 *.tgz
 .env

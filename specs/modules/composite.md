@@ -1,4 +1,4 @@
-# `@actspec/composite`
+# `@actharness/composite`
 
 The v0.1 executor: runs `using: composite` actions — the step loop + the `ShellSandbox` that executes real `run:` shell in a scoped temp workspace. Registers itself into core's executor registry.
 
@@ -9,7 +9,7 @@ The v0.1 executor: runs `using: composite` actions — the step loop + the `Shel
 No new *public* consumer types — it surfaces results through core's `RunResult`/`StepResult`.
 
 ## Depends on
-`@actspec/core` (seam types, protocol, context, mock resolver, errors) and `@actspec/expressions` (via core's evaluator). No others.
+`@actharness/core` (seam types, protocol, context, mock resolver, errors) and `@actharness/expressions` (via core's evaluator). No others.
 
 ## Behavior (MUST)
 1. **Step loop**, in manifest order. For each step:

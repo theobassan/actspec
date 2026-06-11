@@ -4,7 +4,7 @@
 //   - Job-level if: evaluation
 //   - wouldTrigger: evaluates on: filters without execution
 
-import { evaluate, evaluateTemplate } from '@actspec/expressions';
+import { evaluate, evaluateTemplate } from '@actharness/expressions';
 import { buildContexts, buildEnvVars, resolveInputValues } from './context.js';
 import { runComposite, makeRunResult } from './composite.js';
 import type { MockRegistry } from './mock.js';

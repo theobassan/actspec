@@ -1,4 +1,4 @@
-# actspec — Expression language spec (`@actspec/expressions`)
+# actharness — Expression language spec (`@actharness/expressions`)
 
 Normative spec for the GitHub Actions `${{ … }}` expression engine. **MUST/MUST NOT** are binding on the implementation.
 
@@ -113,7 +113,7 @@ Dispatch is **case-insensitive** (`WellKnownFunctions` is an `OrdinalIgnoreCase`
 | `hashFiles(...patterns)` | SHA-256 over the matched file set. **Algorithm (pinned by a fixture):** glob the comma-separated patterns (`!`-negation, `**`) under `GITHUB_WORKSPACE`; in globber (sorted) order, SHA-256 each matched file's bytes; concatenate those digests and SHA-256 the concatenation → lowercase hex. **`''` if nothing matches.** Runner-tier; ships real in v0.0, overridable via the `functions` hook. |
 
 ### Status functions (runtime-wired)
-`success()`, `failure()`, `always()`, `cancelled()` depend on job/step status, which the *runtime* supplies (not the pure evaluator). They behave differently in `job` vs `step` scope. The engine exposes them via the `status` context hook; `@actspec/core` populates it per the lifecycle.
+`success()`, `failure()`, `always()`, `cancelled()` depend on job/step status, which the *runtime* supplies (not the pure evaluator). They behave differently in `job` vs `step` scope. The engine exposes them via the `status` context hook; `@actharness/core` populates it per the lifecycle.
 
 ## Template vs single-expression typing
 - A value that is **exactly** `${{ expr }}` (nothing around it) **preserves the expression's type** — `${{ fromJSON('{"a":1}') }}` yields an object.

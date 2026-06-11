@@ -1,4 +1,4 @@
-# Spike — workflow orchestration (`@actspec/workflow`)
+# Spike — workflow orchestration (`@actharness/workflow`)
 
 > **POC spike — proves that `WorkflowRunner` is genuinely additive.** Implements a minimal `WorkflowRunner` that drives the existing `StepRunner` over a real job DAG, with `needs:` threading, matrix expansion, and `wouldTrigger`. The key question is not "can workflows run" — they can, the architecture is clear — but **"does anything about workflow execution require reshaping the types and interfaces v0.1 will already have shipped?"** If yes, the change is a spec edit now; if not, v0.1 ships with confidence that v0.4 won't break it.
 
@@ -17,7 +17,7 @@ There are three specific tensions the architecture acknowledges but doesn't full
 
 2. **`JobResult extends RunResult`.** A job's `steps:` run exactly like a composite's, but a job also has `id`, `matrix`, `needs`, `outcome`/`conclusion` at the job level (not just the step level), and a `cancelled` conclusion composite actions don't have. Does `RunResult` carry these cleanly as an extension — or does adding them require changing the base type (e.g., adding `cancelled` to `conclusion`, or adding `outcome` at the result level)?
 
-3. **`wouldTrigger` dependencies.** Evaluating `on:` filters (`branches`/`paths`/`tags`, `schedule`, `workflow_run`) requires expression evaluation and `github` context access. Does this path import from `@actspec/core` in a way that's already there — or does it need new evaluator hooks that would require touching v0.1's expression engine?
+3. **`wouldTrigger` dependencies.** Evaluating `on:` filters (`branches`/`paths`/`tags`, `schedule`, `workflow_run`) requires expression evaluation and `github` context access. Does this path import from `@actharness/core` in a way that's already there — or does it need new evaluator hooks that would require touching v0.1's expression engine?
 
 If any of these require a v0.1 type or interface change, the time to find it is now.
 
@@ -29,7 +29,7 @@ When a real implementation of `WorkflowRunner` is built against the v0.1 type de
 2. Can `ContextStore` thread `needs.<job>` context between jobs without a shape change to its v0.1 interface?
 3. Does `JobResult extends RunResult` work structurally — meaning the v0.4 job matchers and the v0.1 step/output matchers operate correctly on a `JobResult` without casting?
 4. Does `WorkflowResult` (the new top-level result type) compose cleanly with the existing `RunResult`-based matchers — or are there gaps in `API.md §10` that only surface when you write real assertions?
-5. Does `actspecWorkflow()` + `mockJob`/`mockReusable` add surface without any modification to `actspec()`, `@actspec/core`, or `@actspec/matchers`?
+5. Does `actharnessWorkflow()` + `mockJob`/`mockReusable` add surface without any modification to `actharness()`, `@actharness/core`, or `@actharness/matchers`?
 6. Does `wouldTrigger` work without needing new expression engine APIs beyond what v0.1 ships?
 
 **Each `yes` is a confirmed design choice. Each `no` is a required change to make before v0.1 is finalized** — because the type surface it affects will already be published.
@@ -40,7 +40,7 @@ When a real implementation of `WorkflowRunner` is built against the v0.1 type de
 - **H2 — `ContextStore` handles `needs` via extension, not redefinition.** Threading `needs.<job>.outputs/result` into the context of a dependent job requires no change to `ContextStore`'s v0.1 interface — it is additive (a new context key, not a new constructor parameter or a new method).
 - **H3 — `JobResult extends RunResult` is structurally correct.** `expect(result.job('build')).toHaveRunStep('compile')` works with zero casting. The v0.1 matcher implementations have no implicit assumption that `conclusion` is always `'success' | 'failure'` (not `'cancelled'`).
 - **H4 — `WorkflowResult` composes with existing matchers.** Writing assertions across `WorkflowResult` using `toHaveRunJob`/`toHaveJobConclusion`/`toHaveJobOutput` + `result.job(id)` with existing step/output matchers produces no shape gaps — every assertion the spec warrants is expressible.
-- **H5 — `actspecWorkflow()` is a pure add.** No modification to `actspec()`, `@actspec/core` exported types, or `@actspec/matchers` is needed. `@actspec/workflow` registers itself the same way `@actspec/composite` does.
+- **H5 — `actharnessWorkflow()` is a pure add.** No modification to `actharness()`, `@actharness/core` exported types, or `@actharness/matchers` is needed. `@actharness/workflow` registers itself the same way `@actharness/composite` does.
 - **H6 — `needs:` DAG + matrix expand without new public fields.** The `needs:` topological sort and matrix expansion (`include`/`exclude`, `fail-fast` cancellation of siblings) can be modeled with the `WorkflowResult` / `JobResult` shape already in [API.md §10](../../docs/API.md) — no new fields on either are needed.
 - **H7 — `wouldTrigger` is standalone.** Evaluating `on:` filters reuses the expression engine and github context from v0.1 without requiring new evaluator APIs, new context types, or new core exports.
 
@@ -62,7 +62,7 @@ When a real implementation of `WorkflowRunner` is built against the v0.1 type de
 - Reusable workflows (`on: workflow_call`) — `mockReusable` is a natural extension of `mockJob`; prove `mockJob` first.
 - `mockService` (service containers) — no container spike yet.
 - `environment:` approvals, concurrency queueing, `workflow_run` trigger.
-- Full `@actspec/workflow` package build (dual ESM/CJS, API Extractor, publication).
+- Full `@actharness/workflow` package build (dual ESM/CJS, API Extractor, publication).
 - Performance.
 
 ## Fixture selection criteria
@@ -108,11 +108,11 @@ Findings are written to [`specs/spikes/workflow-findings.md`](workflow-findings.
 
 ## Exit — what we decide after
 
-- **If no v0.1-blocking changes:** v0.1 ships as designed. The spike's `WorkflowRunner` and fixture tests become the starting point for `@actspec/workflow` when v0.4 is scheduled.
+- **If no v0.1-blocking changes:** v0.1 ships as designed. The spike's `WorkflowRunner` and fixture tests become the starting point for `@actharness/workflow` when v0.4 is scheduled.
 - **If `ContextStore` needs a shape change (H2 fails):** update `ContextStore`'s interface in [specs/modules/core.md](../modules/core.md) and [API.md](../../docs/API.md) before v0.1 ships — it's a core type.
 - **If `JobResult extends RunResult` doesn't hold (H3 fails):** update [API.md §4 and §10](../../docs/API.md) and [specs/modules/matchers.md](../modules/matchers.md) before v0.1 ships. A conclusion type change (`| 'cancelled'`) is a small edit; a structural incompatibility is bigger.
 - **If matchers have gaps (H4 fails):** update [specs/modules/matchers.md](../modules/matchers.md) and [API.md §6](../../docs/API.md) before v0.1 ships — the missing matchers need to be designed before the matchers package is built.
-- **If `actspecWorkflow()` needs a core change (H5 fails):** update [specs/modules/core.md](../modules/core.md) before v0.1 ships.
+- **If `actharnessWorkflow()` needs a core change (H5 fails):** update [specs/modules/core.md](../modules/core.md) before v0.1 ships.
 - **If `wouldTrigger` needs new expression engine APIs (H7 fails):** update [specs/modules/expressions.md](../modules/expressions.md) and [docs/EXPRESSIONS.md](../../docs/EXPRESSIONS.md) before v0.0 ships.
 
 ## References
@@ -121,6 +121,6 @@ Findings are written to [`specs/spikes/workflow-findings.md`](workflow-findings.
 - [docs/ARCHITECTURE.md → Future-proofing invariants](../../docs/ARCHITECTURE.md#future-proofing-invariants) — the three invariants v0.1 must hold.
 - [docs/API.md §4](../../docs/API.md) — `RunResult`/`StepResult` shape this spike stress-tests.
 - [docs/API.md §6](../../docs/API.md) — v0.1 matchers that must work unchanged on `JobResult`.
-- [docs/API.md §10](../../docs/API.md) — the `actspecWorkflow()` surface this spike validates.
+- [docs/API.md §10](../../docs/API.md) — the `actharnessWorkflow()` surface this spike validates.
 - [specs/versions/v0.4.md](../versions/v0.4.md) — the v0.4 milestone this spike de-risks.
 - [specs/spikes/api-ergonomics-findings.md](api-ergonomics-findings.md) — prior ergonomics spike; H7 (workflow matchers additive) was confirmed at high level but not with a running `WorkflowRunner`.

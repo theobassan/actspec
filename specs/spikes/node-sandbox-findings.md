@@ -1,6 +1,6 @@
 # Node-sandbox spike — findings
 
-> **Status: COMPLETE.** All four scenarios pass. Exit per [specs/spikes/node-sandbox.md](node-sandbox.md): no API or sandbox design changes needed before building `@actspec/node`.
+> **Status: COMPLETE.** All four scenarios pass. Exit per [specs/spikes/node-sandbox.md](node-sandbox.md): no API or sandbox design changes needed before building `@actharness/node`.
 
 ---
 
@@ -40,7 +40,7 @@ The candidates identified during research (`actions/checkout`, `actions/setup-no
 
 **Effect in practice:** The test runner still survives (H5 holds) and the conclusion is still `failure` (because `process.exitCode` ends up as `1`). The only visible difference is a spurious `::error::process.exit(1)` annotation in stdout.
 
-**Scope:** `JsSandbox` implementation detail. No effect on the public `@actspec/node` API surface.
+**Scope:** `JsSandbox` implementation detail. No effect on the public `@actharness/node` API surface.
 
 **Proposed fix for v0.2:** Tag `WorkerExitSignal` instances with a non-enumerable Symbol property. After the `import()` settles, check if the `catch` handler in the action saw a `WorkerExitSignal` by inspecting `process.exitCode`. Since `core.setFailed` always sets `process.exitCode = 1` (same as our signal), the exit code is correct regardless. The annotation noise can be filtered by the runner by checking `err.name === 'WorkerExitSignal'` before passing to `setFailed`.
 
@@ -121,4 +121,4 @@ No extra sandbox infrastructure is needed beyond setting `NODE_V8_COVERAGE` on t
 - The two implementation details to carry into v0.2 are §1 (process.exit annotation noise — cosmetic) and §2 (same-instance undici patching — already solved in the spike's bootstrap code).
 - ESM (§3) is a gap to close with a fifth fixture before shipping v0.2, not a design blocker.
 
-**Proceed to build `@actspec/node`** per [v0.2.md](../versions/v0.2.md) and [ARCHITECTURE.md → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes).
+**Proceed to build `@actharness/node`** per [v0.2.md](../versions/v0.2.md) and [ARCHITECTURE.md → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes).

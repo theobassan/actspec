@@ -1,4 +1,4 @@
-# Spike — expression engine (`@actspec/expressions`)
+# Spike — expression engine (`@actharness/expressions`)
 
 > **Throwaway-or-promote.** A thin vertical slice that de-risks the **highest-risk component** ([ARCHITECTURE → highest-risk assumptions](../../docs/ARCHITECTURE.md#the-three-highest-risk-assumptions)) *before* the full package is built. It is judged **only** against the oracle-sourced [seed corpus](../../corpus/expressions/) — never against the author's own expectations. This is deliberate: see *Why* below.
 
@@ -105,7 +105,7 @@ The probe's findings are not a throwaway log; they are written to a **durable, n
 
 ## Exit — what we decide after
 
-- **If green + harvest looks tractable:** promote the engine toward the real `@actspec/expressions` package (add dual build, fuzz, full API, real `hashFiles`, packaging) and schedule the harvest with the probe's numbers.
+- **If green + harvest looks tractable:** promote the engine toward the real `@actharness/expressions` package (add dual build, fuzz, full API, real `hashFiles`, packaging) and schedule the harvest with the probe's numbers.
 - **If divergences surface:** document each against EXPRESSIONS.md (is the *doc* wrong, or our *reading*?), fix the grounding, and re-run — before any dependent package exists.
 - **If the harvest proves impractical as specified:** raise it as a gate question ([D5] assumes a full vendored set) rather than silently narrowing the v0.0 bar.
 

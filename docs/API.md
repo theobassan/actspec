@@ -1,11 +1,10 @@
-# actspec — Public API surface
+# actharness — Public API surface
 
 The whole point: **the same three verbs regardless of action type.**
 
 ```ts
-const action = actspec('./action.yml'); // composite, node, or docker — caller doesn't care
-action.mock('actions/checkout@v4', { outputs: { ref: 'abc123' } });
-const result = await action.run({ inputs: { name: 'World' } });
+actharness.mock('actions/checkout@v4', { outputs: { ref: 'abc123' } });
+const result = await actharness('./action.yml').run({ inputs: { name: 'World' } });
 expect(result).toHaveSucceeded();
 ```
 
@@ -16,7 +15,7 @@ Everything below is the proposed surface. Types are the contract; prose is ratio
 ## 1. Entry point
 
 ```ts
-export function actspec(source: string | ActionSource, options?: ActspecOptions): Action;
+export function actharness(source: string | ActionSource, options?: ActharnessOptions): Action;
 
 /** A path to `action.yml`/`action.yaml` or its directory, inline YAML, or a pre-parsed manifest. */
 type ActionSource =
@@ -24,7 +23,7 @@ type ActionSource =
   | { yaml: string }
   | { manifest: ParsedAction };
 
-interface ActspecOptions {
+interface ActharnessOptions {
   /** What to do when a `uses:` step isn't mocked.
    *  Default: local-vs-remote — { local: 'real', remote: 'noop' }.
    *  `real` only ever resolves local ./ ../ paths; a remote ref set to 'real' is a config error. */
@@ -57,7 +56,11 @@ interface Determinism {
 }
 ```
 
-`actspec()` is synchronous: it parses and returns a handle. All execution is on `run()`. **Determinism is frozen by default** — fixed clock, seeded RNG, stable `GITHUB_RUN_ID`/`RUNNER_TEMP`/workspace paths — so snapshots are stable out of the box; opt into real time/random per field.
+`actharness()` is synchronous: it parses and returns a handle. All execution is on `run()`. **Determinism is frozen by default** — fixed clock, seeded RNG, stable `GITHUB_RUN_ID`/`RUNNER_TEMP`/workspace paths — so snapshots are stable out of the box; opt into real time/random per field.
+
+**Relative paths** (`./`, `../`) in `source` are resolved relative to the calling file's directory via stack-trace inspection — `actharness('./action.yml')` always finds the right file regardless of the working directory. Absolute paths and directory paths are used as-is.
+
+`actharness` is injected into `globalThis` by `actharness test` so test files need no imports. It can also be imported directly: `import { actharness } from 'actharness'`. The import is typed as `ActharnessFn` — carrying `.mock()` and `.resetMocks()` — and refers to the same object the CLI registered.
 
 ---
 
@@ -69,30 +72,44 @@ interface Action {
   readonly manifest: ParsedAction;
   /** Discriminated by `runs.using`. */
   readonly type: 'composite' | 'node' | 'docker' | (string & {});
-
-  // ── mocking (chainable; persists across run() calls until reset) ──
-  /** Mock an action invoked via `uses:`, by ref. The primary, type-agnostic mock surface. */
-  mock(ref: string, def?: ActionMockDef | ActionMockImpl): ActionMock;
-  /** Mock GitHub API / Octokit calls a JS action makes internally (v0.2). */
-  mockGitHubApi(routes: GitHubApiRoutes): NetworkMock;
-  /** Mock arbitrary network for a JS/composite child (v0.2). */
-  mockNetwork(matcher: NetworkMatcher): NetworkMock;
-  /** Stub a shell command inside run: steps (e.g. `git`, `curl`) for determinism. */
-  mockShellCommand(cmd: string | RegExp, impl: ShellCommandImpl): ShellMock;
-
-  /** Remove one mock (by ref) or all mocks. */
-  unmock(ref?: string): void;
-  /** Clear recorded calls but keep mock definitions. */
-  clearMocks(): void;
-  /** Remove all mocks entirely. */
-  resetMocks(): void;
-
-  // ── execution ──
   run(input?: RunInput): Promise<RunResult>;
 }
 ```
 
-> **Why one `mock()` for `uses:` and separate `mockGitHubApi`/`mockNetwork`?** A `uses:` target is a *dependency you call*; that's unified across composite/node/docker. What a JS action does *inside itself* (Octokit, fetch) is a different kind of dependency. Same mental model ("mock your dependencies"), honestly typed instead of one overloaded magic function.
+Mocking is registered on the `actharness` function itself — not on the `Action` handle — so it applies across every `run()` in the test file. See the `actharness.*` mock surface below.
+
+### `actharness.*` — global mock surface
+
+```ts
+type ActharnessFn = {
+  (source: string, options?: ActharnessOptions): Action;
+
+  // ── action mocks (v0.1) ──
+  /** Mock an action invoked via `uses:`, by ref. The primary, type-agnostic mock surface. */
+  mock(ref: string, def?: ActionMockDef | ActionMockImpl): ActionMock;
+  /** Remove all mocks entirely. Typically called in afterEach. */
+  resetMocks(): void;
+
+  // ── JS-action internal mocks (v0.2) ──
+  /** Mock GitHub API / Octokit calls a JS action makes internally. */
+  mockGitHubApi(routes: GitHubApiRoutes): NetworkMock;
+  /** Mock arbitrary network for a JS/composite child. */
+  mockNetwork(matcher: NetworkMatcher): NetworkMock;
+  /** Stub a shell command inside run: steps, e.g. `git`, `curl`. */
+  mockShellCommand(cmd: string | RegExp, impl: ShellCommandImpl): ShellMock;
+
+  // ── workflow-scope mocks (v0.4) ──
+  /** Mock an entire job by id — declare its outputs/result instead of running it. */
+  mockJob(id: string, def?: JobMockDef | JobMockImpl): JobMock;
+  /** Mock a called reusable workflow (`uses: ./.github/workflows/x.yml`). */
+  mockReusable(ref: string, def?: JobMockDef | JobMockImpl): JobMock;
+  /** Mock a service container (`jobs.<id>.services.<name>`). */
+  mockService(name: string, def?: ServiceMockDef): ServiceMock;
+};
+export const actharness: ActharnessFn;
+```
+
+> **Why `actharness.mock()` for `uses:` and separate `actharness.mockGitHubApi()`/`actharness.mockNetwork()`?** A `uses:` target is a *dependency you call* — unified across composite/node/docker. What a JS action does *inside itself* (Octokit, fetch) is a different kind of dependency. Same mental model ("mock your dependencies"), honestly typed instead of one overloaded magic function.
 
 ---
 
@@ -168,6 +185,8 @@ interface StepResult {
   /** Diagnostics (always present for run: steps; eval trace only when diagnostics:'trace'). */
   render?: { script: string; shell: string; env: Record<string, string>; cwd: string };
   trace?: ExpressionTrace[];
+  /** ::error::/::warning::/::notice:: annotations emitted during this step. */
+  annotations: Annotation[];
   stdout: string;
   stderr: string;
 }
@@ -202,7 +221,7 @@ type ActionMockImpl = (call: {
 }) => ActionMockDef | Promise<ActionMockDef> | void;
 
 interface ActionMock {
-  /** Recorded invocations, newest-last. Shaped to also satisfy native jest/vitest spy matchers. */
+  /** Recorded invocations, newest-last. */
   readonly calls: ActionMockCall[];
   readonly called: boolean;
   readonly callCount: number;
@@ -226,7 +245,7 @@ interface ActionMockCall {
 }
 ```
 
-`calls` mirrors jest/vitest's `mock.calls` array shape so authors can reach for native `toHaveBeenCalledWith` *or* actspec's matchers.
+`calls` is an array of invocation records; use actharness's `toHaveBeenCalledWith` or access it directly.
 
 **Shell command mocks** — stub `run:` step commands (e.g. `git`, `curl`) for determinism:
 
@@ -257,30 +276,38 @@ interface ShellMock {
 
 ---
 
-## 6. Matchers (`@actspec/matchers`)
+## 6. Matchers (`@actharness/matchers`)
 
-actspec ships its **own** `expect()` — no Jest or Vitest dependency. When running via `actspec test`, `expect` is injected into `globalThis` automatically (zero imports). It can also be imported directly: `import { expect } from '@actspec/matchers'`.
+actharness ships its **own** `expect()`. When running via `actharness test`, `expect` is injected into `globalThis` automatically (zero imports). It can also be imported directly: `import { expect } from '@actharness/matchers'`.
 
-TypeScript types for all globals are declared in `@actspec/matchers/globals.d.ts`. Add once to `tsconfig.json`:
+TypeScript types for all globals are declared in `actharness/globals`. Add once to `tsconfig.json`:
 ```jsonc
-{ "types": ["@actspec/matchers/globals"] }
+{ "types": ["actharness/globals"] }
 ```
 
 ```ts
-// result matchers
+// RunResult matchers
 expect(result).toHaveSucceeded();
 expect(result).toHaveFailed();
-expect(result).toHaveRunStep('build');
-expect(result).toHaveSkippedStep('deploy');
-expect(result).toHaveStepConclusion('build', 'success');
-expect(result).toHaveOutput('version');               // present
-expect(result).toHaveOutput('version', '1.2.3');      // present and equals
+expect(result).toHaveStep('build');                                        // ran (not skipped by if:)
+expect(result).toHaveStepSucceeded('build');                               // ran + conclusion success
+expect(result).toHaveStepFailed('build');                                  // ran + conclusion failure
+expect(result).toHaveStepSkipped('deploy');                                // skipped by if:
+expect(result).toHaveOutput('version');                                    // present
+expect(result).toHaveOutput('version', '1.2.3');                           // present and equals
 expect(result).toHaveStepOutput('build', 'sha', 'abc1234');
-expect(result).toHaveAnnotation('error', /missing token/);
-expect(result).toHaveStepStdout('build', /compiled/);   // step stdout matches string or regex
-expect(result).toHaveStepOutcome('lint', 'failure');     // raw outcome before continue-on-error applied
+expect(result).toHaveAnnotation({ level: 'error', message: /missing token/ });
 
-// mock matchers (ActionMock.calls is also available directly)
+// StepResult matchers — pass result.step('id') directly; if the step is absent (undefined),
+// all matchers throw "Expected step to exist, but step was not found"
+expect(result.step('build')).toHaveSucceeded();
+expect(result.step('build')).toHaveFailed();
+expect(result.step('build')).toHaveOutput('sha', 'abc1234');
+expect(result.step('build')).toHaveAnnotation({ level: 'warning', message: /deprecated/ });
+expect(result.step('build')).toHaveStdoutContaining('compiled');
+expect(result.step('build')).toHaveStderrContaining('error text');
+
+// ActionMock matchers (ActionMock.calls is also available directly)
 expect(checkout).toHaveBeenCalled();
 expect(checkout).toHaveBeenCalledWith({ ref: 'main', 'fetch-depth': '0' });
 expect(checkout).toHaveBeenCalledTimes(1);
@@ -294,11 +321,13 @@ expect(wfResult).toHaveJobCancelled('deploy');       // cancelled by fail-fast
 expect(wfResult.job('release')).toHaveStepOutput('publish', 'url', 'https://…'); // §6 matchers, reused
 ```
 
+All matchers support `.not` negation: `expect(result).not.toHaveSucceeded()`.
+
 ---
 
 ## 7. Standalone expression engine
 
-Exported independently for community reuse (`@actspec/expressions`). Full normative semantics + conformance corpus: [EXPRESSIONS.md](EXPRESSIONS.md).
+Exported independently for community reuse (`@actharness/expressions`). Full normative semantics + conformance corpus: [EXPRESSIONS.md](EXPRESSIONS.md).
 
 ```ts
 /** Evaluate a single expression body (no surrounding `${{ }}`), preserving type. */
@@ -330,41 +359,38 @@ type ExprValue = null | boolean | number | string | ExprValue[] | { [k: string]:
 
 ### Composite (v0.1)
 ```ts
-// no imports — actspec, expect, describe, test are injected by `actspec test`
+// no imports — actharness, expect, describe, test are injected by `actharness test`
 
 test('greet composite sets the greeting output', async () => {
-  const action = actspec('./greet/action.yml');
-  const result = await action.run({ inputs: { name: 'World' } });
+  const result = await actharness('./greet/action.yml').run({ inputs: { name: 'World' } });
 
   expect(result).toHaveSucceeded();
-  expect(result).toHaveRunStep('say-hello');
+  expect(result).toHaveStep('say-hello');
   expect(result).toHaveOutput('greeting', 'Hello World');
 });
 
 test('skips publish step when dry-run', async () => {
-  const action = actspec('./release/action.yml');
-  const checkout = action.mock('actions/checkout@v4', { outputs: { ref: 'sha123' } });
+  const checkout = actharness.mock('actions/checkout@v4', { outputs: { ref: 'sha123' } });
 
-  const result = await action.run({
+  const result = await actharness('./release/action.yml').run({
     inputs: { 'dry-run': true },
     github: { ref: 'refs/heads/main' },
   });
 
   expect(checkout).toHaveBeenCalledWith({ 'fetch-depth': '0' });
-  expect(result).toHaveSkippedStep('publish');
-  expect(result).toHaveStepConclusion('build', 'success');
+  expect(result).toHaveStepSkipped('publish');
+  expect(result).toHaveStepSucceeded('build');
 });
 ```
 
 ### JS action (v0.2) — identical surface
 ```ts
 test('node action masks the token and sets a fingerprint', async () => {
-  const action = actspec('./fingerprint/action.yml'); // using: node24
-  action.mockGitHubApi({
+  actharness.mockGitHubApi({
     'GET /repos/{owner}/{repo}': { default_branch: 'main' },
   });
 
-  const result = await action.run({
+  const result = await actharness('./fingerprint/action.yml').run({ // using: node24
     inputs: { token: 'super-secret' },
     github: { repository: 'acme/widgets' },
   });
@@ -380,23 +406,21 @@ test('node action masks the token and sets a fingerprint', async () => {
 ### Docker action (v0.3) — still identical
 ```ts
 test('docker action returns parsed version', async () => {
-  const action = actspec('./scanner/action.yml', { container: 'mock' }); // using: docker
-  action.mock('./scanner', { outputs: { report: 'clean' } }); // or run real with container:'docker'
-  const result = await action.run({ inputs: { path: './src' } });
+  actharness.mock('./scanner', { outputs: { report: 'clean' } }); // or run real with container:'docker'
+  const result = await actharness('./scanner/action.yml', { container: 'mock' }).run({ inputs: { path: './src' } });
   expect(result).toHaveOutput('report', 'clean');
 });
 ```
 
 ### Workflow (v0.4) — a parallel entry, same step/mock vocabulary
 ```ts
-import { actspecWorkflow } from 'actspec';
+import { actharnessWorkflow } from 'actharness';
 
 test('release job runs only on a tag, after build succeeds', async () => {
-  const wf = actspecWorkflow('./.github/workflows/release.yml');
-  wf.mock('actions/checkout@v4');
-  wf.mockJob('build', { outputs: { artifact: 'app.tgz' } }); // mock a whole job
+  actharness.mock('actions/checkout@v4');
+  actharness.mockJob('build', { outputs: { artifact: 'app.tgz' } }); // mock a whole job
 
-  const result = await wf.run({
+  const result = await actharnessWorkflow('./.github/workflows/release.yml').run({
     event: 'push',
     eventPayload: { ref: 'refs/tags/v1.2.3' },
   });
@@ -407,19 +431,19 @@ test('release job runs only on a tag, after build succeeds', async () => {
 });
 ```
 
-The step/output/mock matchers are identical — only `toHaveRunJob`/`toHaveJobConclusion` and `actspecWorkflow()` are new. The `actspec()` action surface is untouched.
+The step/output/mock matchers are identical — only `toHaveRunJob`/`toHaveJobConclusion` and `actharnessWorkflow()` are new. The `actharness()` action surface is untouched.
 
 ### Coverage (all versions) — opt-in reporting, zero test-body change
 ```bash
 # enable via the CLI flag — no config file needed
-actspec test --coverage --reporter text,html,lcov --threshold ifBranches=80
+actharness test --coverage --reporter text,html,lcov --threshold ifBranches=80
 ```
 
 ```ts
-// optional: programmatic config in actspec.config.ts
-import { actspecCoverage } from '@actspec/coverage';
+// optional: programmatic config in actharness.config.ts
+import { actharnessCoverage } from '@actharness/coverage';
 
-actspecCoverage({
+actharnessCoverage({
   include: ['action.yml', '.github/workflows/*.yml'],
   reporters: ['text', 'html', 'lcov'],
   thresholds: { steps: 100, ifBranches: 80 }, // fail the suite if under
@@ -431,21 +455,21 @@ The test body never branches on action type — or on whether it's an action or 
 
 ---
 
-## 9. Coverage (`@actspec/coverage`)
+## 9. Coverage (`@actharness/coverage`)
 
-Coverage ships from v0.1 and is **passive**: it observes every `run()` and aggregates across the suite. No change to how tests are written — only config + (optionally) thresholds. It is **parallel-safe**: `actspec test` runs each test file in its own worker; fragments are written to a temp dir per worker and merged by the CLI after all workers complete — so a fully parallel suite still yields one report (see ARCHITECTURE → Coverage).
+Coverage ships from v0.1 and is **passive**: it observes every `run()` and aggregates across the suite. No change to how tests are written — only config + (optionally) thresholds. It is **parallel-safe**: `actharness test` runs each test file in its own worker; fragments are written to a temp dir per worker and merged by the CLI after all workers complete — so a fully parallel suite still yields one report (see ARCHITECTURE → Coverage).
 
 Internally, coverage is an **Istanbul-compatible coverage map** (steps → statements, `if:` → branches, v0.2 JS lines as real line coverage). That one decision means the **full Istanbul reporter set works** and the emitted `coverage-final.json` is mergeable with your other coverage via standard istanbul tooling (e.g. `nyc merge`).
 
 ```ts
 /** Register the suite-level collector + reporters. Call once in a setup file. */
-export function actspecCoverage(options?: CoverageOptions): void;
+export function actharnessCoverage(options?: CoverageOptions): void;
 
 interface CoverageOptions {
   /** Action/workflow files to attribute coverage to (globs). Default: auto from run() sources. */
   include?: string[];
   exclude?: string[];
-  /** Reports to emit (full Istanbul reporter set). Default: ['text', 'html'].
+  /** Reports to emit (full Istanbul reporter set). Default: ['lcov', 'html', 'text'].
    *  console: 'text' | 'text-summary'
    *  human:   'html' | 'html-spa'
    *  CI:      'lcov' (lcov.info + html) | 'lcovonly' | 'cobertura' (GitLab/Azure/Jenkins) | 'clover' | 'teamcity'
@@ -453,7 +477,7 @@ interface CoverageOptions {
   reporters?: Array<
     | 'text' | 'text-summary' | 'html' | 'html-spa'
     | 'lcov' | 'lcovonly' | 'cobertura' | 'clover' | 'teamcity'
-    | 'json' | 'json-summary' | 'none' | CoverageReporter
+    | 'json' | 'json-summary' | 'none'
   >;
   /** Directory for all coverage output — reports + `coverage-final.json` (hand that to `nyc merge`).
    *  Default: './coverage'. */
@@ -467,11 +491,24 @@ type CoverageMetric =
   | 'steps'          // v0.1: steps executed vs skipped
   | 'ifBranches'     // v0.1: each if: seen both true AND false
   | 'inputs'         // v0.1: declared inputs/defaults exercised
+  | 'outputs'        // v0.1: declared outputs actually produced
   | 'jsLines'        // v0.2: V8 line coverage of JS action code
   | 'jobs';          // v0.4: workflow jobs run + needs edges taken
 
 /** Programmatic access (e.g. for custom assertions or CI gating). */
 export function getCoverage(): CoverageReport;
+
+/** Apply include/exclude globs and zero-fill never-run files.
+ *  Called automatically by the CLI after merging fragments; exposed for custom runners
+ *  that manage the coverage lifecycle directly. */
+export function applyIncludeExclude(
+  base: CoverageReport,
+  options: Pick<CoverageOptions, 'include' | 'exclude'>,
+  cwd: string,
+): CoverageReport;
+
+/** Aggregate per-file stats into suite totals. */
+export function aggregateTotals(files: FileCoverage[]): Record<CoverageMetric, CoverageStat>;
 
 interface CoverageReport {
   total: Record<CoverageMetric, CoverageStat>;
@@ -479,10 +516,32 @@ interface CoverageReport {
   files: Record<string, FileCoverage>;
 }
 interface CoverageStat { covered: number; total: number; pct: number }
+interface IfBranchRow { step: string; expression: string; trueCount: number; falseCount: number }
+interface InputCoverageRow {
+  name: string;
+  hasDefault: boolean;
+  coveredProvided: boolean;
+  coveredDefault: boolean;
+  providedCount: number;
+  defaultCount: number;
+}
+interface OutputCoverageRow { name: string; covered: boolean; count: number }
 interface FileCoverage {
-  metrics: Record<CoverageMetric, CoverageStat>;
-  /** Per-`if:` truth table: which branches were observed. */
-  ifBranches: Array<{ step: string; expression: string; sawTrue: boolean; sawFalse: boolean }>;
+  path: string;
+  steps: CoverageStat;
+  ifBranches: CoverageStat;
+  inputs: CoverageStat;
+  outputs: CoverageStat;
+  /** Per-`if:` truth table: how many times each branch resolved true/false. */
+  ifBranchTable: IfBranchRow[];
+  /** Per-input exercise table: provided-path vs default-path coverage. */
+  inputTable: InputCoverageRow[];
+  /** Per-output exercise table: which declared outputs were produced at least once. */
+  outputTable: OutputCoverageRow[];
+  /** Raw hit counts per step id (body: ran === true). */
+  stepHits: Record<string, number>;
+  /** Raw reach counts per step id (header: if: evaluated, or ran for no-if steps). */
+  stepReached: Record<string, number>;
   uncoveredSteps: string[];
 }
 ```
@@ -491,25 +550,15 @@ interface FileCoverage {
 
 ---
 
-## 10. Workflows (`@actspec/workflow`, v0.4)
+## 10. Workflows (`@actharness/workflow`, v0.4)
 
 A parallel entry. Everything from §3–§6 (run input, results, mocks, matchers) applies per job; only the orchestration surface below is added. The `Action` API in §2 does not change.
 
 ```ts
-export function actspecWorkflow(source: string | WorkflowSource, options?: ActspecOptions): Workflow;
+export function actharnessWorkflow(source: string | WorkflowSource, options?: ActharnessOptions): Workflow;
 
 interface Workflow {
   readonly manifest: ParsedWorkflow;
-
-  // ── mocking: same action mocks, plus job / reusable-workflow / service scope ──
-  mock(ref: string, def?: ActionMockDef | ActionMockImpl): ActionMock; // uses: in any job
-  /** Mock an entire job by id — declare its outputs/result instead of running it. */
-  mockJob(id: string, def?: JobMockDef | JobMockImpl): JobMock;
-  /** Mock a called reusable workflow (`uses: ./.github/workflows/x.yml`). */
-  mockReusable(ref: string, def?: JobMockDef | JobMockImpl): JobMock;
-  /** Mock a service container (`jobs.<id>.services.<name>`) — declare ports/env instead of running it. */
-  mockService(name: string, def?: ServiceMockDef): ServiceMock;
-  resetMocks(): void;
 
   /** Evaluate `on:` filters without executing: which jobs would fire for this event? */
   wouldTrigger(event: TriggerInput): TriggerResult;
@@ -602,24 +651,23 @@ expect(wf.wouldTrigger({ event: 'push', ref: 'refs/heads/main', changedFiles: ['
 expect(wf.wouldTrigger({ event: 'push', changedFiles: ['README.md'] }).triggered).toBe(false); // paths-ignore
 
 // reusable workflow as the unit under test, with inherited secrets + a mocked service
-const reusable = actspecWorkflow('./.github/workflows/deploy.yml');
-reusable.mockService('postgres', { ports: { 5432: 5432 } });
-const r = await reusable.run({ inputs: { environment: 'staging' }, secrets: 'inherit' });
+actharness.mockService('postgres', { ports: { 5432: 5432 } });
+const r = await actharnessWorkflow('./.github/workflows/deploy.yml').run({ inputs: { environment: 'staging' }, secrets: 'inherit' });
 expect(r).toHaveJobOutput('deploy', 'url', 'https://staging.app');
 ```
 
 ---
 
-## 11. Typed actions (`@actspec/gen`)
+## 11. Typed actions (`@actharness/gen`)
 
-A codegen step turns an `action.yml` into a typed handle, so inputs, outputs, and mocks are checked against the action's real surface. Opt-in — the untyped `actspec()` still works.
+A codegen step turns an `action.yml` into a typed handle, so inputs, outputs, and mocks are checked against the action's real surface. Opt-in — the untyped `actharness()` still works.
 
 ```bash
-npx actspec gen ./action.yml > action.gen.ts   # or a glob; emits one typed module per action
+npx actharness gen ./action.yml > action.gen.ts   # or a glob; emits one typed module per action
 ```
 
 ```ts
-import { greet } from './action.gen';            // generated: typed wrapper around actspec('./action.yml')
+import { greet } from './action.gen';            // generated: typed wrapper around actharness('./action.yml')
 
 const action = greet();
 await action.run({
@@ -645,12 +693,12 @@ Mocks can be typed the same way from the *mocked* action's manifest, so `mock('a
 
 ---
 
-## 12. Fixtures & factories (`@actspec/fixtures`)
+## 12. Fixtures & factories (`@actharness/fixtures`)
 
 Realistic context + event payloads so tests aren't hand-rolling envelopes.
 
 ```ts
-import { contexts, events } from '@actspec/fixtures';
+import { contexts, events } from '@actharness/fixtures';
 
 await action.run({
   github: contexts.github({ repository: 'acme/widgets', ref: 'refs/heads/main' }), // fills the rest
@@ -689,9 +737,9 @@ interface ExpressionTrace {
 }
 
 /** Thrown errors are typed and carry action.yml source position. */
-class ActspecError extends Error { code: string; source?: { file: string; line: number; col: number } }
-class MissingMockError extends ActspecError {}   // names the unmocked ref + the one-line fix
-class ExpressionError extends ActspecError {}    // points at the bad ${{ }} with a caret
+class ActharnessError extends Error { code: string; source?: { file: string; line: number; col: number } }
+class MissingMockError extends ActharnessError {}   // names the unmocked ref + the one-line fix
+class ExpressionError extends ActharnessError {}    // points at the bad ${{ }} with a caret
 ```
 
 Snapshots work out of the box because results are serializable and determinism is frozen:
@@ -707,64 +755,60 @@ A registered snapshot serializer normalizes volatile bits (temp paths) and masks
 
 ---
 
-## 14. CLI (`@actspec/cli`)
+## 14. CLI (`@actharness/cli`)
 
-Two commands: `actspec test` — the purpose-built test runner; `actspec run` — execute one action outside a test.
+Two commands: `actharness test` — the purpose-built test runner; `actharness run` — execute one action outside a test.
 
 ```bash
-# run the test suite (discovers **/*.actspec.ts and **/*.test.ts by default)
-actspec test
-actspec test 'src/**/*.actspec.ts'       # custom pattern
-actspec test --coverage                  # emit Istanbul reports
-actspec test --reporter html,lcov        # reporter selection
-actspec test --threshold ifBranches=80   # fail if under
+# run the test suite (discovers **/*.actharness.ts and **/*.test.ts by default)
+actharness test
+actharness test 'src/**/*.actharness.ts'       # custom pattern
+actharness test --coverage                  # emit Istanbul reports
+actharness test --reporter html,lcov        # reporter selection
+actharness test --threshold ifBranches=80   # fail if under
 
 # scaffold a test for an existing action
-actspec init ./action.yml                # writes action.test.ts with no imports
+actharness init ./action.yml                # writes action.test.ts with no imports
 
-# generate typed wrappers (see §11)
-actspec types './actions/**/action.yml' --outdir ./generated
+# actharness types — deferred (post-v0.1, subcommand reserved)
 ```
 
-`actspec test` injects `describe`, `it`, `test`, `before`, `after`, `beforeEach`, `afterEach`, `actspec`, and `expect` into `globalThis` before running each test file — no imports needed in test files. Each file runs in its own worker (via `node:test` parallel mode). Coverage is managed by the CLI; no `setupFiles` or `globalTeardown` config is needed.
+`actharness test` injects `describe`, `it`, `test`, `before`, `after`, `beforeEach`, `afterEach`, `actharness`, and `expect` into `globalThis` before running each test file — no imports needed in test files. Each file runs in its own worker (via `node:test` parallel mode). Coverage is managed by the CLI; no `setupFiles` or `globalTeardown` config is needed.
 
 ---
 
-`actspec run` executes a single action outside a test — same runtime, so behavior matches the test path exactly. The CLI *runs and prints*; it does not assert (assertions belong in tests).
+`actharness run` executes a single action outside a test — same runtime, so behavior matches the test path exactly. The CLI *runs and prints*; it does not assert (assertions belong in tests).
 
 ```bash
 # run an action with inputs + a mock, print outputs/conclusion
-actspec run ./action.yml \
+actharness run ./action.yml \
   --input name=World \
   --mock actions/checkout@v4='{"outputs":{"ref":"abc123"}}' \
   --event push --json
 
-# generate typed wrappers (see §11)
-actspec types './actions/**/action.yml' --outdir ./generated
-
 # scaffold a test for an existing action
-actspec init ./action.yml            # writes action.test.ts with a runnable starting point
+actharness init ./action.yml            # writes action.test.ts with a runnable starting point
 ```
 
-`actspec run` honors the same `ActspecOptions` (e.g. `--container docker`, `--unmocked-uses error`, `--no-freeze-time`), so what you see on the CLI is what a test sees.
+`actharness run` honors the same `ActharnessOptions` (e.g. `--container docker`, `--unmocked-uses error`, `--no-freeze-time`), so what you see on the CLI is what a test sees.
 
 ### Mocking on the CLI — one surface, never a second DSL
 The CLI has **no mocking language of its own**. Beyond a flag or two it drives the *same* `mock()` API your tests use, so mocks are authored once and reused. Scales by how much you mock:
 
 ```bash
 # 1 — a couple of static mocks: inline flags
-actspec run ./action.yml --mock actions/checkout@v4='{"outputs":{"ref":"abc"}}'
+actharness run ./action.yml --mock actions/checkout@v4='{"outputs":{"ref":"abc"}}'
 
 # 2 — many static mocks: a declarative file (no flag soup)
-actspec run ./action.yml --mock-file ./mocks.yml
+actharness run ./action.yml --mock-file ./mocks.yml
 
 # 3 — dynamic mocks / API / shell / shared with a test: a setup module (the real answer)
-actspec run ./action.yml --setup ./mocks.ts
+actharness run ./action.yml --setup ./mocks.ts
 
 # 4 — don't want to hand-write them: record once, replay deterministically
 #     (deferred post-v0.1 — flag is reserved; errors politely if used today)
-actspec run ./action.yml --record            # captures each uses:'s real outputs → writes mocks.yml
-actspec run ./action.yml --mock-file mocks.yml
+actharness run ./action.yml --record            # captures each uses:'s real outputs → writes mocks.yml
+actharness run ./action.yml --mock-file mocks.yml
 ```
 
 **`--mock-file` (declarative, static only):**
@@ -783,18 +827,19 @@ shell:
 **`--setup` (the same API as a test — dynamic, GitHub API, shell, anything):**
 ```ts
 // mocks.ts  (loaded via tsx/jiti)
-import type { Action } from 'actspec';
+import { actharness } from 'actharness';
 
-export default function setup(action: Action) {
-  action.mock('actions/checkout@v4', { outputs: { ref: 'abc' } });
-  action.mock('./deploy', ({ with: w }) => ({ outputs: { url: `https://${w.env}.app` } })); // dynamic
-  action.mockGitHubApi({ 'GET /repos/{owner}/{repo}': { default_branch: 'main' } });
+export default function setup() {
+  actharness.mock('actions/checkout@v4', { outputs: { ref: 'abc' } });
+  actharness.mock('./deploy', ({ with: w }) => ({ outputs: { url: `https://${w.env}.app` } })); // dynamic
+  actharness.mockGitHubApi({ 'GET /repos/{owner}/{repo}': { default_branch: 'main' } });
 }
 ```
 The same `setup()` is imported by the test, so mocks live in one place:
 ```ts
 import setup from './mocks';
-const action = actspec('./action.yml'); setup(action);   // identical behavior in-test
+setup();                             // registers mocks on the shared actharness registry
+const result = await actharness('./action.yml').run();  // identical behavior in-test
 ```
 
 > **Why this scales.** The trivial case is flags; everything heavier is *code you already wrote for your tests*. Past a certain amount of mocking you're really describing a test — so the CLI just runs that test's `setup()` module instead of growing a wall of flags. `--record` (item 4, deferred post-v0.1 — flag reserved) needs the opt-in network resolver to fetch remote-real, so recording is explicit by nature — consistent with the hermetic default.

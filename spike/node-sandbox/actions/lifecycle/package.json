@@ -1,5 +1,5 @@
 {
-  "name": "actspec-spike-lifecycle",
+  "name": "actharness-spike-lifecycle",
   "private": true,
   "version": "0.0.1",
   "description": "Spike fixture — pre/main/post lifecycle action",

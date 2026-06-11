@@ -1,6 +1,6 @@
 # Expression conformance corpus (seed)
 
-The fidelity gate for `@actspec/expressions`: the engine is "correct" iff green against this corpus. See [docs/EXPRESSIONS.md](../../docs/EXPRESSIONS.md) for the semantics each vector pins.
+The fidelity gate for `@actharness/expressions`: the engine is "correct" iff green against this corpus. See [docs/EXPRESSIONS.md](../../docs/EXPRESSIONS.md) for the semantics each vector pins.
 
 This is a **seed** — the load-bearing vectors that pin every distinct behavior. The full set is harvested mechanically from the sources below (the `&&`/`||` full type-matrix, ~150 rows, is generated, not hand-listed here).
 

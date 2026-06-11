@@ -1,0 +1,30 @@
+name: Context Inspector
+description: Outputs GitHub context and event payload fields for testing context/event injection.
+author: actharness
+
+outputs:
+  event-name:
+    value: ${{ github.event_name }}
+  repository:
+    value: ${{ github.repository }}
+  actor:
+    value: ${{ github.actor }}
+  runner-os:
+    value: ${{ runner.os }}
+  event-ref:
+    value: ${{ github.event.ref }}
+  event-action:
+    value: ${{ github.event.action }}
+  event-number:
+    value: ${{ github.event.number }}
+  event-issue-number:
+    value: ${{ github.event.issue.number }}
+  event-tag:
+    value: ${{ github.event.release.tag_name }}
+
+runs:
+  using: composite
+  steps:
+    - id: inspect
+      shell: bash
+      run: echo "done"

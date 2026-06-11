@@ -1,16 +1,16 @@
-# `@actspec/gen` — DEFERRED (post-v0.1)
+# `@actharness/gen` — DEFERRED (post-v0.1)
 
 > **Status: not built in v0.1.** Reserved here so the contract exists and the design stays coherent. Build after v0.1 is validated (ARCHITECTURE → Risks: a focused v0.1 beats a broad one).
 
-Codegen: turn an `action.yml` into a typed handle so inputs/outputs/mocks are checked against the action's real surface. Opt-in; the untyped `actspec()` always works.
+Codegen: turn an `action.yml` into a typed handle so inputs/outputs/mocks are checked against the action's real surface. Opt-in; the untyped `actharness()` always works.
 
 ## Owns (when built)
 
-[API.md §11](../../docs/API.md): the `actspec gen` codegen CLI and the generated `TypedAction<I, O>` / `TypedRunInput<I>` / `TypedRunResult<O>` shapes.
+[API.md §11](../../docs/API.md): the `actharness gen` codegen CLI and the generated `TypedAction<I, O>` / `TypedRunInput<I>` / `TypedRunResult<O>` shapes.
 
 ## Depends on (when built)
 
-`@actspec/types` (for `Action`/`RunInput`/`RunResult` base types it specializes). The generator is a build-time tool; generated code imports from `@actspec/types` (and at runtime from `@actspec/core`, which re-exports everything).
+`@actharness/types` (for `Action`/`RunInput`/`RunResult` base types it specializes). The generator is a build-time tool; generated code imports from `@actharness/types` (and at runtime from `@actharness/core`, which re-exports everything).
 
 ## Why deferred
 
@@ -20,4 +20,4 @@ Codegen: turn an `action.yml` into a typed handle so inputs/outputs/mocks are ch
 
 ## Done-when (future)
 
-Generated `Action<In,Out>` type-checks `run({inputs})`/`result.outputs`/mocks against a manifest; a `.test-d.ts` proves bad input/output keys are compile errors; wired into `@actspec/cli` as `actspec gen`. To be detailed in `specs/versions/` when scheduled.
+Generated `Action<In,Out>` type-checks `run({inputs})`/`result.outputs`/mocks against a manifest; a `.test-d.ts` proves bad input/output keys are compile errors; wired into `@actharness/cli` as `actharness gen`. To be detailed in `specs/versions/` when scheduled.

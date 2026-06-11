@@ -6,7 +6,7 @@ import { runWorkflow } from './workflow.js';
 import { MockRegistry } from './mock.js';
 import { notifyRunSink } from './run-sink.js';
 import type {
-  ActspecOptions, RunInput, RunResult, WorkflowResult,
+  ActharnessOptions, RunInput, RunResult, WorkflowResult,
   ActionMock, ActionMockDef, ActionMockImpl, GitHubApiRoutes,
 } from './types.js';
 
@@ -20,7 +20,7 @@ export interface Action {
   run(input?: RunInput): Promise<RunResult>;
 }
 
-export function actspec(source: string, _options?: ActspecOptions): Action {
+export function actharness(source: string, _options?: ActharnessOptions): Action {
   const rawPath = resolveSource(source);
   const sourceFile = resolveActionPath(rawPath);
   const actionDir = resolveActionDir(rawPath);
@@ -74,7 +74,7 @@ export interface Workflow {
   run(input?: RunInput): Promise<WorkflowResult>;
 }
 
-export function actspecWorkflow(source: string, _options?: ActspecOptions): Workflow {
+export function actharnessWorkflow(source: string, _options?: ActharnessOptions): Workflow {
   const workflowPath = resolveSource(source);
   const workflow = parseWorkflow(workflowPath);
   const registry = new MockRegistry();

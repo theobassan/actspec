@@ -1,4 +1,4 @@
-// Public API entry points: actspec() and actspecWorkflow().
+// Public API entry points: actharness() and actharnessWorkflow().
 // Implements the surface from docs/API.md §1-§2 and §10.
 
 import { resolve, dirname, isAbsolute } from 'path';
@@ -8,7 +8,7 @@ import { runNode } from './node.js';
 import { runWorkflow } from './workflow.js';
 import { MockRegistry } from './mock.js';
 import type {
-  ActspecOptions,
+  ActharnessOptions,
   RunInput,
   RunResult,
   WorkflowResult,
@@ -30,7 +30,7 @@ export interface Action {
   run(input?: RunInput): Promise<RunResult>;
 }
 
-export function actspec(source: string, _options?: ActspecOptions): Action {
+export function actharness(source: string, _options?: ActharnessOptions): Action {
   const actionPath = resolveSource(source);
   const actionDir = actionPath.endsWith('.yml') || actionPath.endsWith('.yaml')
     ? dirname(actionPath)
@@ -83,7 +83,7 @@ export interface Workflow {
   run(input?: RunInput): Promise<WorkflowResult>;
 }
 
-export function actspecWorkflow(source: string, _options?: ActspecOptions): Workflow {
+export function actharnessWorkflow(source: string, _options?: ActharnessOptions): Workflow {
   const workflowPath = resolveSource(source);
   const workflow = parseWorkflow(workflowPath);
   const registry = new MockRegistry();

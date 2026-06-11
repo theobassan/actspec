@@ -1,0 +1,6 @@
+name: Bare Input
+runs:
+  using: composite
+  steps: []
+inputs:
+  bare:

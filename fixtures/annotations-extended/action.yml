@@ -1,0 +1,22 @@
+name: Annotations Extended
+description: Shows ::notice::, ::debug::, ::add-mask::, and annotation RegExp matching.
+author: actharness
+
+runs:
+  using: composite
+  steps:
+    - id: emit-notice
+      shell: bash
+      run: echo "::notice::deployment started"
+
+    - id: emit-debug
+      shell: bash
+      run: |
+        echo "::debug::internal cache state: ready"
+
+    - id: mask-and-echo
+      shell: bash
+      run: |
+        echo "::add-mask::s3cr3t"
+        echo "token is s3cr3t"
+        echo "also s3cr3t here"

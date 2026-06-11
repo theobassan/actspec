@@ -1,0 +1,14 @@
+name: Bad Output
+description: Composite action with output edge cases
+outputs:
+  no_value:
+    description: Output with no value field
+  bad_expr:
+    description: Output with invalid expression
+    value: '${{ ( }}'
+runs:
+  using: composite
+  steps:
+    - name: run
+      shell: bash
+      run: echo done

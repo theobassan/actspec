@@ -1,9 +1,9 @@
-# actspec — Build specs
+# actharness — Build specs
 
-Implementation specs for building actspec. Read these together with [docs/](../docs/) (the *why/what*); these are the *build-this* layer.
+Implementation specs for building actharness. Read these together with [docs/](../docs/) (the *why/what*); these are the *build-this* layer.
 
 ## How it's organized (two axes, no duplication)
-- **`modules/<name>.md` — durable contracts.** What each `@actspec/*` package *is*: responsibility, public types, dependencies, behavior, acceptance, done-when. A module evolves across versions but has **one** spec.
+- **`modules/<name>.md` — durable contracts.** What each `@actharness/*` package *is*: responsibility, public types, dependencies, behavior, acceptance, done-when. A module evolves across versions but has **one** spec.
 - **`versions/vN.md` — milestones.** What to build *now*: which modules (and which slice of each), the build order, the integration checkpoint, and exit criteria. Versions **reference** modules; they don't re-spec them.
 
 So "by module" and "by version" both exist — modules are the stable contracts, versions are the increments that point at them. Adding v0.2 doesn't fork the module specs; it extends them and adds `versions/v0.2.md`.

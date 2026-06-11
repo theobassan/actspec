@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 import type { Action } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,7 +15,7 @@ describe('composite-deploy', () => {
   let action: Action;
 
   beforeEach(() => {
-    action = actspec(FIXTURE);
+    action = actharness(FIXTURE);
     // checkout is always mocked so tests don't need a real git repo.
     action.mock('actions/checkout@v4');
   });

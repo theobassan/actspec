@@ -1,0 +1,36 @@
+name: Multi Step
+description: "Multiple steps with if: and continue-on-error"
+
+inputs:
+  should_fail:
+    description: If 'true', the second step will fail
+    default: 'false'
+
+outputs:
+  ran_third:
+    description: Whether the third step ran
+    value: ${{ steps.third.outputs.ran }}
+
+runs:
+  using: composite
+  steps:
+    - id: first
+      name: First step
+      run: echo "first=done" >> "$GITHUB_OUTPUT"
+      shell: bash
+
+    - id: second
+      name: Failing step
+      run: |
+        if [ "${{ inputs.should_fail }}" = "true" ]; then
+          exit 1
+        fi
+        echo "second=done" >> "$GITHUB_OUTPUT"
+      shell: bash
+      continue-on-error: true
+
+    - id: third
+      name: Always runs
+      if: always()
+      run: echo "ran=yes" >> "$GITHUB_OUTPUT"
+      shell: bash

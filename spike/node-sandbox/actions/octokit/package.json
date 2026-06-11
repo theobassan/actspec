@@ -1,5 +1,5 @@
 {
-  "name": "actspec-spike-octokit",
+  "name": "actharness-spike-octokit",
   "private": true,
   "version": "0.0.1",
   "description": "Spike fixture — Octokit caller action",

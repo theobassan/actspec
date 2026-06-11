@@ -1,5 +1,5 @@
 {
-  "name": "actspec-runner-spike",
+  "name": "actharness-runner-spike",
   "private": true,
   "type": "module",
   "scripts": {

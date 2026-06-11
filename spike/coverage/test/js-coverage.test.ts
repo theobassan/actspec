@@ -2,7 +2,7 @@
 
 import { resolve } from 'path';
 import { existsSync } from 'fs';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 import { collector } from '../src/coverage-register.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
@@ -13,7 +13,7 @@ describe('H9 / Probe #11 — JS line coverage from worker_threads', () => {
     expect(existsSync(resolve(SETTER_DIR, 'index.js'))).toBe(true);
     expect(existsSync(resolve(SETTER_DIR, 'package.json'))).toBe(true);
 
-    const action = actspec(SETTER_DIR);
+    const action = actharness(SETTER_DIR);
     const result = await action.run({ inputs: { greeting: 'Hello', name: 'World' } });
 
     expect(result.conclusion).toBe('success');
@@ -21,7 +21,7 @@ describe('H9 / Probe #11 — JS line coverage from worker_threads', () => {
   });
 
   it('V8 coverage data is collected for the setter JS file and appears in the fragment', async () => {
-    const action = actspec(SETTER_DIR);
+    const action = actharness(SETTER_DIR);
 
     await action.run({ inputs: { greeting: 'Hi', name: 'Alice' } });
 
@@ -48,7 +48,7 @@ describe('H9 / Probe #11 — JS line coverage from worker_threads', () => {
   });
 
   it('the node action step appears in the coverage map (step coverage works for node actions)', async () => {
-    const action = actspec(SETTER_DIR);
+    const action = actharness(SETTER_DIR);
     const before = Object.keys(collector.getFragment()).length;
 
     await action.run({ inputs: { greeting: 'Hello', name: 'Coverage' } });

@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
-import { evaluate, evaluateTemplate } from '@actspec/expressions';
+import { evaluate, evaluateTemplate } from '@actharness/expressions';
 import { allocateProtocolFiles, parseProtocolFile, parseAnnotations, parseLegacyOutputCommands } from './protocol.js';
 import { buildContexts, buildEnvVars, resolveInputValues, type JobStatus } from './context.js';
 import type { MockRegistry } from './mock.js';
@@ -33,7 +33,7 @@ export async function runComposite(opts: CompositeRunOptions): Promise<RunResult
   if (opts.input.jobStatus === 'failure') jobStatus = { success: false, failure: true, cancelled: false };
   if (opts.input.jobStatus === 'cancelled') jobStatus = { success: false, failure: false, cancelled: true };
 
-  const workspace = mkdtempSync(join(tmpdir(), 'actspec-ws-'));
+  const workspace = mkdtempSync(join(tmpdir(), 'actharness-ws-'));
 
   try {
     for (const step of opts.action.runs.steps ?? []) {

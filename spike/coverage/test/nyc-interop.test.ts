@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 import { createCoverageMap, createFileCoverage } from '../src/istanbul-compat.js';
 import type { FileCoverageData } from '../src/istanbul-compat.js';
 import { buildActionCoverage, updateActionCoverage } from '../src/istanbul-map.js';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
 
@@ -32,7 +32,7 @@ describe('H8 / Probe #9 — nyc merge interop', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     await action.run({ inputs: { mode: 'full' } }).then(r => updateActionCoverage(coverage, meta, r));
 
     const yamlMap = createCoverageMap({});
@@ -68,7 +68,7 @@ describe('H8 / Probe #9 — nyc merge interop', () => {
     const { coverage: cov1, meta } = buildActionCoverage(sourceFile, yamlSource);
     const { coverage: cov2 } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     await action.run({ inputs: { mode: 'full' } }).then(r => updateActionCoverage(cov1, meta, r));
     await action.run({ inputs: { mode: 'full' } }).then(r => updateActionCoverage(cov2, meta, r));
 

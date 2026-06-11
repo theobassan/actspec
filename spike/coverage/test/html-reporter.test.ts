@@ -6,10 +6,10 @@ import { createCoverageMap } from '../src/istanbul-compat.js';
 import libReport from 'istanbul-lib-report';
 import reports from 'istanbul-reports';
 import { buildActionCoverage, updateActionCoverage } from '../src/istanbul-map.js';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
-const TMP_REPORT = '/tmp/actspec-html-probe';
+const TMP_REPORT = '/tmp/actharness-html-probe';
 
 describe('Probe #3 / H2 — HTML reporter on YAML source', () => {
   it('produces index.html without crashing when source file is action.yml', async () => {
@@ -20,7 +20,7 @@ describe('Probe #3 / H2 — HTML reporter on YAML source', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     const result = await action.run({ inputs: { mode: 'full' } });
     updateActionCoverage(coverage, meta, result);
 
@@ -48,7 +48,7 @@ describe('Probe #3 / H2 — HTML reporter on YAML source', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     const result = await action.run({ inputs: { mode: 'full' } });
     updateActionCoverage(coverage, meta, result);
 

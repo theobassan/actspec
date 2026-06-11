@@ -1,0 +1,20 @@
+name: Global Mocks Demo
+description: "Action used by the global-mocks test suite to verify scope-chain mock resolution."
+author: actharness
+
+outputs:
+  checkout-sha:
+    description: SHA from checkout step
+    value: ${{ steps.checkout.outputs.sha }}
+  status:
+    description: Status from status-check step
+    value: ${{ steps.status-check.outputs.status }}
+
+runs:
+  using: composite
+  steps:
+    - id: checkout
+      uses: actions/checkout@v4
+
+    - id: status-check
+      uses: actions/status-check@v1

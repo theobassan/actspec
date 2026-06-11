@@ -8,8 +8,9 @@
     "skipLibCheck": true,
     "outDir": "./dist",
     "rootDir": ".",
+    "types": ["node", "vitest/globals"],
     "paths": {
-      "@actspec/expressions": ["../expressions/src/index.ts"]
+      "@actharness/expressions": ["../expressions/src/index.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*"]

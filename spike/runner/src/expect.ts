@@ -17,7 +17,7 @@ export interface Matcher {
   toMatch(pattern: RegExp | string): void;
   // functions
   toThrow(): void;
-  // actspec-specific
+  // actharness-specific
   toHaveSucceeded(): void;
   toHaveFailed(): void;
   toHaveOutput(key: string, expected?: string): void;

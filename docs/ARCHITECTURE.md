@@ -1,6 +1,6 @@
-# actspec — Architecture
+# actharness — Architecture
 
-> Unit testing for GitHub Actions. Jest, but for `action.yml`.
+> Unit testing for GitHub Actions.
 
 ## Goals & non-goals
 
@@ -8,14 +8,14 @@
 - Test a single action in **isolation**, hermetically, with no real GitHub runner and no network.
 - One unified test API (`mock` / `run` / `expect`) that is **identical** whether the unit under test is a composite, JS, Docker action — or (v0.4) a whole workflow.
 - Faithful simulation of the parts of the runner that affect observable behavior: the **runner-file protocol** (`$GITHUB_OUTPUT`, `$GITHUB_ENV`, …), **workflow commands** (`::set-output::`, `::error::`, …), and the **expression language** (`${{ … }}`).
-- **Coverage as a first-class output, every version.** Each `run()` reports which steps ran, which were skipped, and how each `if:` resolved; the suite aggregates that into a coverage report (step + `if:`-branch from v0.1; JS line coverage from v0.2; job coverage from v0.4). See [Coverage](#coverage-cross-cutting-all-versions).
+- **Coverage as a first-class output, every version.** Each `run()` reports which steps ran, which were skipped, and how each `if:` resolved; the suite aggregates that into a coverage report (step + `if:`-branch + input/default + output from v0.1; JS line coverage from v0.2; job coverage from v0.4). See [Coverage](#coverage-cross-cutting-all-versions).
 - Extensible without changing the public API — by *action type* (a new executor) or *scope* (a new orchestrator). Roadmap: v0.0 expressions standalone → v0.1 composite → v0.2 node → v0.3 docker → **v0.4 workflows** → v0.5+ future types.
 
 **Non-goals**
-- Being an *integration* runner. `act` boots full workflows in Docker to reproduce a run; actspec stays hermetic and mock-first — even for workflows (v0.4), child actions and the network are mocked unless you opt into real execution. Different tool, different promise.
-- Being a linter. `actionlint` covers static analysis. actspec executes.
+- Being an *integration* runner. `act` boots full workflows in Docker to reproduce a run; actharness stays hermetic and mock-first — even for workflows (v0.4), child actions and the network are mocked unless you opt into real execution. Different tool, different promise.
+- Being a linter. `actionlint` covers static analysis. actharness executes.
 - Byte-for-byte runner reproduction. We reproduce *observable* behavior, not VM provisioning, caching, or telemetry.
-- **A security sandbox.** actspec runs the real `bash`/JS from your `action.yml`; its isolation is env-scoping + a temp workspace (hermeticity and determinism), **not** a trust boundary. It is for testing actions *you control or trust* — not for executing untrusted/malicious actions safely. (See [Threat model](#threat-model).)
+- **A security sandbox.** actharness runs the real `bash`/JS from your `action.yml`; its isolation is env-scoping + a temp workspace (hermeticity and determinism), **not** a trust boundary. It is for testing actions *you control or trust* — not for executing untrusted/malicious actions safely. (See [Threat model](#threat-model).)
 
 ## The core idea: actions compose, so the runtime is recursive
 
@@ -31,8 +31,8 @@ This recursion is what makes the unified API possible. There is one execution co
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  Public API   actspec() · actspecWorkflow() · .mock()          │  ← stable across all versions
-│               · .run() · expect()                              │
+│  Public API   actharness() · actharness.mock() · actharnessWorkflow()   │  ← stable across all versions
+│               · .run() · result.step() · expect()             │
 ├────────────────────────────────────────────────────────────────┤
 │  Test Harness   mock registry · result builder · matchers ·    │
 │                 context fixtures · CoverageCollector (suite)   │  ← coverage is cross-cutting
@@ -93,11 +93,11 @@ interface ExecutionResult {
 }
 ```
 
-`actspec().run()` produces the top-level `ExecutionCall`, dispatches to the matching executor, and the harness shapes the `ExecutionResult` into the public `RunResult` the matchers read.
+`actharness().run()` produces the top-level `ExecutionCall`, dispatches to the matching executor, and the harness shapes the `ExecutionResult` into the public `RunResult` the matchers read.
 
 ## Data flow of a single `run()`
 
-1. **Parse** `action.yml` (cached on the `Action` handle).
+1. **Resolve & parse** — if `source` starts with `./` or `../`, the path is resolved relative to the calling file's directory via stack-trace inspection (so `actharness('./action.yml')` always finds the right file regardless of the working directory); then `action.yml` is parsed and cached on the `Action` handle.
 2. **Build context** — merge user-supplied `github`/`env`/`runner`/`secrets`/`matrix` over sane defaults; resolve `inputs` (apply `default:`, coerce to strings, fill `INPUT_*`).
 3. **Dispatch** to the executor matching `runs.using`.
 4. Executor runs:
@@ -151,7 +151,7 @@ A testing library must own its nondeterminism. By default every run gets a **fix
 
 ## Subsystem notes
 
-### Expression engine (`@actspec/expressions`) — the hard part
+### Expression engine (`@actharness/expressions`) — the hard part
 Ships as a standalone package because **no complete open-source JS implementation exists** and the community wants one. Pipeline: `tokenize → parse (Pratt / precedence-climbing) → evaluate(ast, contexts)`.
 
 The reference is the C# runner (`Sdk/Expressions`), *not* JavaScript semantics — the differences are where every naïve port breaks:
@@ -175,17 +175,17 @@ A per-invocation handle that allocates temp files for `GITHUB_OUTPUT`, `GITHUB_E
 2. **Internal-dependency mocks (secondary).** What a *JS* action does internally — Octokit/`@actions/github`, raw `fetch` — is intercepted in the `JsSandbox` via a network layer (undici `MockAgent`). A `run:` step's external commands (`git`, `curl`) are stubbed via `ShellSandbox` command stubs.
 
 **Default policy for an unmocked `uses:` is local-vs-remote:**
-- **Local refs (`./`, `../`)** — actions you own, in your tree → **`real`**: recurse and execute them. Deterministic (no network), and it means a composite that calls your other local actions "just works" without ceremony — the Jest-like "run your own code" feel.
+- **Local refs (`./`, `../`)** — actions you own, in your tree → **`real`**: recurse and execute them. Deterministic (no network), and it means a composite that calls your other local actions "just works" without ceremony — the "run your own code" feel.
 - **Remote refs (`owner/repo@ref`, `docker://…`)** → **`noop`**: treated as success with no outputs, **never auto-fetched**. This is what keeps moving refs like `@main` from breaking hermeticity. A warning annotation is emitted so the silent gap is visible (not truly silent).
 
 The knob is overridable globally or per-ref (`error` to force a declaration, `real`/`noop` to pin behavior). **Real recursion only ever resolves local paths** — there is no network resolver; a remote ref set to `real` is a configuration error, surfaced as such. The `MockResolver` enforces **cycle detection and a max-depth limit** across nested composites and (v0.4) reusable workflows, so a self-referential or deeply nested graph fails loudly instead of hanging.
 
 ### Sandboxes
 - **ShellSandbox** — spawns the declared `shell:` (default `bash`) with `cwd` = temp workspace and a **scoped, non-inherited** env (explicit allowlist + `GITHUB_*` + `RUNNER_*` + `INPUT_*` + accumulated `GITHUB_ENV`). Expression substitution into `run:` strings is literal — we reproduce GitHub's behavior faithfully, including its script-injection footgun, so tests can *catch* it.
-- **JsSandbox** — `worker_thread` for per-worker `process.env` isolation; wires protocol files; captures `stdout`/`stderr` and `process.exit`; mounts the network mock. (Heavier `vm`/process isolation is a pluggable upgrade.) **Implementation note (from sandbox spike):** `process.exit` must be overridden in the worker *before* the action's entrypoint is imported — unguarded, it terminates the test runner process. The undici `MockAgent` for Octokit interception must be resolved from the **action's own `node_modules`** (not the sandbox's), so it patches the same undici instance `@actions/github` will use; for ncc-bundled actions that embed undici, a `globalThis.fetch` override is the fallback. **Worker bootstrap format (from coverage spike):** The `Worker` entry file must be `.mjs` (not `.ts`). Node.js checks the entry file extension *before* `--import` hooks in the Worker's `execArgv` are processed — a `.ts` entry is rejected before tsx can register its loader. **Worker `execArgv` isolation (from coverage spike):** When the outer process runs under `actspec test` (which sets `--import tsx/esm --import register.ts` in `execArgv`), the inner `Worker` inherits those flags. `--import register.ts` then fails inside the action worker because `register.ts` is not meaningful there. The `JsSandbox` Worker must set explicit `execArgv: ['--import', 'tsx/esm']` to suppress the inherited chain. **V8 line coverage (from coverage spike):** `NODE_V8_COVERAGE` fires on process exit only — worker threads share the host V8 instance and do not trigger a separate coverage dump on thread exit. JS line coverage is instead collected via Node's **inspector API** inside the worker bootstrap: an `inspector.Session` enables `Profiler.startPreciseCoverage` before the action entrypoint is imported, and `Profiler.takePreciseCoverage` is called after the action completes; the result is sent back to the host via `parentPort.postMessage` and converted with `v8-to-istanbul`.
+- **JsSandbox** — `worker_thread` for per-worker `process.env` isolation; wires protocol files; captures `stdout`/`stderr` and `process.exit`; mounts the network mock. (Heavier `vm`/process isolation is a pluggable upgrade.) **Implementation note (from sandbox spike):** `process.exit` must be overridden in the worker *before* the action's entrypoint is imported — unguarded, it terminates the test runner process. The undici `MockAgent` for Octokit interception must be resolved from the **action's own `node_modules`** (not the sandbox's), so it patches the same undici instance `@actions/github` will use; for ncc-bundled actions that embed undici, a `globalThis.fetch` override is the fallback. **Worker bootstrap format (from coverage spike):** The `Worker` entry file must be `.mjs` (not `.ts`). Node.js checks the entry file extension *before* `--import` hooks in the Worker's `execArgv` are processed — a `.ts` entry is rejected before tsx can register its loader. **Worker `execArgv` isolation (from coverage spike):** When the outer process runs under `actharness test` (which sets `--import tsx/esm --import register.ts` in `execArgv`), the inner `Worker` inherits those flags. `--import register.ts` then fails inside the action worker because `register.ts` is not meaningful there. The `JsSandbox` Worker must set explicit `execArgv: ['--import', 'tsx/esm']` to suppress the inherited chain. **V8 line coverage (from coverage spike):** `NODE_V8_COVERAGE` fires on process exit only — worker threads share the host V8 instance and do not trigger a separate coverage dump on thread exit. JS line coverage is instead collected via Node's **inspector API** inside the worker bootstrap: an `inspector.Session` enables `Profiler.startPreciseCoverage` before the action entrypoint is imported, and `Profiler.takePreciseCoverage` is called after the action completes; the result is sent back to the host via `parentPort.postMessage` and converted with `v8-to-istanbul`.
 - **ContainerSandbox** — interface with backends: `mock` (default; treat the container like any mocked dependency — declare outputs), `docker`, `podman`. Real container execution is opt-in so CI without a daemon still runs the suite.
-  - **Image sources:** `image: Dockerfile` or `image: ./path` → built via `docker build` on demand, cached by SHA-256 of the Dockerfile + `.dockerignore` (content-hash cache is in-process, keyed `actspec-docker-<hash16>`). `image: docker://registry/img` → the `docker://` prefix is stripped and the image is passed directly to `docker run` (pulled on first use). Relative `./path` is resolved relative to the action directory, not the test file.
-  - **Protocol file mounting:** the five protocol files (`GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_STATE`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY`) are host temp files bind-mounted into the container at their **exact host absolute paths** (e.g. `-v /tmp/actspec-abc/output:/tmp/actspec-abc/output`). The container sets its protocol env vars to these same paths, so `echo "name=val" >> $GITHUB_OUTPUT` inside the container writes to the host file. After the container exits, the host reads the file. **Invariant:** protocol temp files are created with `chmod 0o666` (world-writable) before each `docker run` so containers running as non-root users can write to them without permission errors — see [CONVENTIONS.md](CONVENTIONS.md#protocol-file-permissions-docker).
+  - **Image sources:** `image: Dockerfile` or `image: ./path` → built via `docker build` on demand, cached by SHA-256 of the Dockerfile + `.dockerignore` (content-hash cache is in-process, keyed `actharness-docker-<hash16>`). `image: docker://registry/img` → the `docker://` prefix is stripped and the image is passed directly to `docker run` (pulled on first use). Relative `./path` is resolved relative to the action directory, not the test file.
+  - **Protocol file mounting:** the five protocol files (`GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_STATE`, `GITHUB_PATH`, `GITHUB_STEP_SUMMARY`) are host temp files bind-mounted into the container at their **exact host absolute paths** (e.g. `-v /tmp/actharness-abc/output:/tmp/actharness-abc/output`). The container sets its protocol env vars to these same paths, so `echo "name=val" >> $GITHUB_OUTPUT` inside the container writes to the host file. After the container exits, the host reads the file. **Invariant:** protocol temp files are created with `chmod 0o666` (world-writable) before each `docker run` so containers running as non-root users can write to them without permission errors — see [CONVENTIONS.md](CONVENTIONS.md#protocol-file-permissions-docker).
   - **`args:` and `entrypoint:`:** `args:` values are expression-evaluated (template substitution with `${{ inputs.* }}`) before being passed as positional arguments to `docker run`. `entrypoint:` is passed as `--entrypoint`; it overrides the image's `ENTRYPOINT` but not `CMD` — the evaluated `args:` serve as the command.
   - **State threading:** each phase (pre-entrypoint, entrypoint, post-entrypoint) gets its own fresh protocol file allocation. `$GITHUB_STATE` written in one phase is parsed after that phase exits and injected into the next phase's container as `STATE_<key>` env vars — the state file itself is not shared between containers.
   - **Output merging:** `$GITHUB_OUTPUT` writes from *all* phases are merged into `RunResult.outputs`. The `docker://` step form follows the same mock-first contract as composite `uses:` targets.
@@ -198,14 +198,15 @@ Coverage is not a version — it's a capability that ships in v0.1 and deepens a
 | **Step coverage** | v0.1 | ~free | Which steps ran vs. were skipped, across the suite |
 | **`if:`-branch coverage** | v0.1 | low | Did each `if:` resolve **both** `true` and `false` somewhere in the suite? *(the novel, valuable one — nobody else reports an untested `action.yml` branch)* |
 | **Input/default coverage** | v0.1 | low | Which declared `inputs:` / `default:`s were actually exercised |
+| **Output coverage** | v0.1 | low | Which declared `outputs:` were actually produced by at least one run |
 | **JS line coverage** | v0.2 | near-free | V8 coverage from the `JsSandbox` → lcov via c8/istanbul |
 | **Job coverage** | v0.4 | low | Which workflow `jobs:` ran/were skipped; which `needs:` edges were taken |
 | **Bash line coverage** | opt-in | hard | Lines inside `run:` scripts, via `kcov`/`bashcov`; shell-dependent, off by default |
 | **Expression sub-branch** | later | hard | Sub-conditions inside `${{ a && b \|\| c }}`; needs AST instrumentation |
 
-**How it works — and why it must be disk-first.** Every `RunResult` already carries the raw signal (`step.ran`, `step.outcome`, `if.result`) and is stamped with its source id (step 6 above). The subtlety: **`actspec test` runs each test *file* in its own worker process** (via `node:test`'s parallel mode), so an in-memory singleton collector would only ever see one file's runs. The `CoverageCollector` therefore **persists per-file coverage fragments to a temp dir** (the `NODE_V8_COVERAGE`/c8 pattern) during the run, and a single **reporter merges them after all workers complete** — writing the configured reports to `coverageDir` and (optionally) failing the suite under a `threshold`. The CLI manages this full lifecycle; no `setupFiles` or `globalTeardown` configuration is needed. It lives in its own package, `@actspec/coverage`, parallel to `@actspec/matchers` — a *consumer* of results, never in the hot path.
+**How it works — and why it must be disk-first.** Every `RunResult` already carries the raw signal (`step.ran`, `step.outcome`, `if.result`) and is stamped with its source id (step 6 above). The subtlety: **`actharness test` runs each test *file* in its own worker process** (via `node:test`'s parallel mode), so an in-memory singleton collector would only ever see one file's runs. The `CoverageCollector` therefore **persists per-file coverage fragments to a temp dir** (the `NODE_V8_COVERAGE`/c8 pattern) during the run, and a single **reporter merges them after all workers complete** — writing the configured reports to `coverageDir` and (optionally) failing the suite under a `threshold`. The CLI manages this full lifecycle; no `setupFiles` or `globalTeardown` configuration is needed. It lives in its own package, `@actharness/coverage`, parallel to `@actharness/matchers` — a *consumer* of results, never in the hot path.
 
-**Istanbul-compatible by construction.** The merged result is an **Istanbul coverage map**: each `action.yml`/workflow file is a "source file" whose **steps map to statements** (at their YAML line ranges) and **`if:`s map to branches** (true/false), with v0.2 JS lines as real line coverage. That single choice unlocks the **entire Istanbul reporter set** — `text`/`text-summary`, **`html`** (default; renders the YAML with covered/uncovered steps highlighted), `lcov`/`lcovonly`, `cobertura` (GitLab/Azure/Jenkins), `clover`, `teamcity`, `json` (`coverage-final.json`), `json-summary` — and makes `coverage-final.json` **mergeable with your other coverage** via standard istanbul tooling (`nyc merge`), so `action.yml` can share one combined report with your app. *Caveat, stated plainly:* a workflow file shows up in that report as a "file" whose statements are steps and branches are `if:`s — positions are YAML, not code.
+**Istanbul-compatible by construction.** The merged result is an **Istanbul coverage map**: each `action.yml`/workflow file is a "source file" whose **steps map to statements** (at their YAML line ranges) and **`if:`s map to branches** (true/false), with v0.2 JS lines as real line coverage. That single choice unlocks the **entire Istanbul reporter set** — `text`/`text-summary`, **`html`** (renders the YAML with covered/uncovered steps highlighted), `lcov`/`lcovonly`, `cobertura` (GitLab/Azure/Jenkins), `clover`, `teamcity`, `json` (`coverage-final.json`), `json-summary` — and makes `coverage-final.json` **mergeable with your other coverage** via standard istanbul tooling (`nyc merge`), so `action.yml` can share one combined report with your app. *Caveat, stated plainly:* a workflow file shows up in that report as a "file" whose statements are steps and branches are `if:`s — positions are YAML, not code.
 
 **Isolation invariant (also what makes coverage correct).** Every **top-level** `run()` gets its **own temp workspace** (shared across its recursion tree — nested local `uses: ./child` reuse it — while env-files are allocated fresh per step; [D4](DECISIONS.md#d4--one-workspace-per-top-level-run-env-files-per-step)) and each `Action` handle owns a **per-instance mock registry** (never a global), so the framework's parallel workers can't cross-contaminate state or double-count coverage. Combined with the two recording invariants below, this is what lets the suite run fully parallel and still produce one coherent report.
 
@@ -218,11 +219,11 @@ What's genuinely new:
 - **`WorkflowRunner` (the orchestrator).** Parses `jobs:`, resolves `needs:` into a DAG, topologically orders it, and runs jobs **sequentially** (parallelism is irrelevant for deterministic tests). Per job it drives the same `StepRunner` over that job's steps.
 - **New contexts** the `ContextStore` must serve: `needs.<job>.outputs`/`.result`, `jobs`, `strategy`, workflow-scope `vars`/`secrets`, plus **matrix expansion** — one `strategy.matrix` job → N concrete instances, with `include` merged and `exclude` pruned per GitHub's rules, each instance its own context. `fail-fast`/`max-parallel` are modeled as an *effect* (a failing instance marks its siblings `cancelled`), since there's no real parallelism to manage. **Matrix job output aggregation (known simplification):** when a `needs:` edge targets a matrix job, the aggregate `conclusion` is `failure` if any instance failed; `needs.<id>.outputs` carries the **last successful instance's outputs** (or the last instance's outputs if all failed). The real runner's semantics for `needs.<matrix-job>.outputs` are undefined when multiple instances exist — this is a documented simplification, not a gap to resolve later.
 - **Job execution environment.** A job may declare `container:` (the job's steps run inside it — routed through `ContainerSandbox`) and `services:` (sidecar containers like postgres/redis). Services are **mocked dependencies** by default (`mockService('postgres', { ports, env })`) so a hermetic suite needs no Docker; opt into real via the container backend. `environment:` surfaces as context (`environment.name/url`) — deployment **protection rules/approvals are out of scope** (they're human gates, not execution).
-- **Reusable workflows, both directions.** A reusable workflow (`on: workflow_call`) can be the **unit under test** — `actspecWorkflow('./.github/workflows/reusable.yml')` with typed `inputs`, `secrets` (including `secrets: inherit`), and workflow-level `outputs:` wired from job outputs — or a **mocked dependency** when called via `uses: …/x.yml` (`mockReusable`). Nesting honors GitHub's depth limit with cycle detection.
+- **Reusable workflows, both directions.** A reusable workflow (`on: workflow_call`) can be the **unit under test** — `actharnessWorkflow('./.github/workflows/reusable.yml')` with typed `inputs`, `secrets` (including `secrets: inherit`), and workflow-level `outputs:` wired from job outputs — or a **mocked dependency** when called via `uses: …/x.yml` (`mockReusable`). Nesting honors GitHub's depth limit with cycle detection.
 - **Wider mocking, same model.** The `MockResolver` extends from "mock a `uses:` action" to also "mock a **whole job**, a **reusable workflow**, or a **service**" — declare its `outputs`/`result` instead of running it. Same mental model, one scope up.
 - **Trigger evaluation, not just injection.** Beyond injecting the event payload, `wouldTrigger(event)` **evaluates `on:` filters** (`branches`/`paths`/`tags` + their `-ignore` forms, `types`) and reports which workflow/jobs would actually fire — so "does my path filter catch this change?" is testable, not assumed. It also covers **`schedule`** (does a given cron fire at time T?) and **`workflow_run`** (would this workflow trigger given another's name + conclusion + branch?). A normal `run()` still targets a chosen job or the whole graph.
 - **Metadata as context.** `permissions`, `concurrency`, and `defaults` (run `shell`/`working-directory`) plus workflow/job `env` are represented in the context/fixtures; `defaults.run` shaping is *enforced* during step execution, the rest are readable metadata.
-- **A parallel entry + matchers** — `actspecWorkflow('./ci.yml')`, `toHaveRunJob`/`toHaveJobConclusion`/`toHaveJobOutput`. The existing step/output matchers apply per job. The `actspec()` action surface is untouched.
+- **A parallel entry + matchers** — `actharnessWorkflow('./ci.yml')`, `toHaveRunJob`/`toHaveJobConclusion`/`toHaveJobOutput`. The existing step/output matchers apply per job. The `actharness()` action surface is untouched.
 
 The one structural reason this stays additive rather than a refactor: **a workflow is not an executor** (it has no `runs.using`). It's a sibling orchestrator above the executor registry that reuses everything from the `StepRunner` down — which is only possible because `StepRunner` and `ContextStore` are kept **action-agnostic** (they operate on a step list + a context store, never "a manifest"). That decoupling is a v0.1 invariant (see [Future-proofing invariants](#future-proofing-invariants)).
 
@@ -233,7 +234,7 @@ Correctness and ergonomics are what separate a library people *trust* from one t
 ### Trust: conformance against the real runner
 The expression engine and runner protocol make a strong claim ("we match GitHub"), so we make it *falsifiable*:
 - **Vendored test vectors** — the runner's own `Sdk/Expressions` test cases, mirrored as data fixtures (with attribution; see [License & attribution](#license--attribution)).
-- **Golden captures** — for a set of real-world actions, record the *real* runner's observable output (outputs, env-file writes, annotations) from an actual GitHub run, commit them, and assert actspec reproduces them. This is the evidence behind every fidelity claim in [Fidelity & semantics](#fidelity--semantics).
+- **Golden captures** — for a set of real-world actions, record the *real* runner's observable output (outputs, env-file writes, annotations) from an actual GitHub run, commit them, and assert actharness reproduces them. This is the evidence behind every fidelity claim in [Fidelity & semantics](#fidelity--semantics).
 - **Differential fuzzing** of the expression parser against the documented grammar.
 
 A claim without a fixture proving it is treated as a bug. The v0.0 expression gate is the **full vendored vector set + parser/eval fuzz**; a live differential run against `nektos/act` is an **optional, non-blocking** extra — act is an imperfect oracle, so we follow the runner ([D5](DECISIONS.md#d5--expression-gate-is-the-full-vendored-corpus-plus-fuzz)).
@@ -246,12 +247,12 @@ For a *testing* tool, error quality is the product. Failures carry context, not 
 - **Missing-mock errors** name the unmocked ref and show the one-line fix.
 
 ### Typed actions & fixtures
-- **Typed inputs/outputs generated from `action.yml`** — a codegen step (`@actspec/gen`) turns a manifest into a typed `Action<Inputs, Outputs>`, so `run({ inputs })`, `result.outputs`, and mocks are checked against the action's real surface. No other tool offers this.
-- **Context & event factories** (`@actspec/fixtures`) — realistic `github`/`runner` defaults and event builders (`events.pull_request({…})`, `events.push({…})`) so fixtures aren't hand-rolled.
+- **Typed inputs/outputs generated from `action.yml`** — a codegen step (`@actharness/gen`) turns a manifest into a typed `Action<Inputs, Outputs>`, so `run({ inputs })`, `result.outputs`, and mocks are checked against the action's real surface. No other tool offers this.
+- **Context & event factories** (`@actharness/fixtures`) — realistic `github`/`runner` defaults and event builders (`events.pull_request({…})`, `events.push({…})`) so fixtures aren't hand-rolled.
 - **Snapshot-friendly results** — `RunResult` is serializable and ships a snapshot serializer; with determinism frozen by default, `toMatchSnapshot()` of outputs/step sequence is stable.
 
-### CLI (`actspec test` / `actspec run`)
-`@actspec/cli` ships two commands. `actspec test` is the purpose-built test runner on top of Node's built-in `node:test` — it discovers test files, injects globals (`describe`, `it`, `test`, `before`, `after`, `beforeEach`, `afterEach`, `actspec`, `expect`) into `globalThis` so test files need zero imports, manages coverage lifecycle (`--coverage`), and runs each file in parallel workers. `actspec run` executes a single action outside a test — `actspec run ./action.yml --input name=World` — for local iteration. Both reuse the same runtime, so behavior matches in-test behavior exactly.
+### CLI (`actharness test` / `actharness run`)
+`@actharness/cli` ships two commands. `actharness test` is the purpose-built test runner on top of Node's built-in `node:test` — it discovers test files, injects globals (`describe`, `it`, `test`, `before`, `after`, `beforeEach`, `afterEach`, `actharness`, `expect`) into `globalThis`, manages coverage lifecycle (`--coverage`), and runs each file in parallel workers. The injected `actharness` has `.mock()` and `.resetMocks()` already attached, so test files need no imports at all. Test files may also `import { actharness } from 'actharness'` directly; the import is typed as `ActharnessFn` (carrying the full mock surface) and refers to the same registered object. `actharness run` executes a single action outside a test — `actharness run ./action.yml --input name=World` — for local iteration. Both reuse the same runtime, so behavior matches in-test behavior exactly.
 
 ## Project
 
@@ -262,44 +263,44 @@ For a *testing* tool, error quality is the product. Failures carry context, not 
 Tests run on contributors' machines and CI across OSes, so the runtime is explicit about it: `runner.os` is a fixture (default `'Linux'`, CI's common OS), overridable per run to exercise other-OS branches — which changes `${{ runner.os }}`, not the real shell — and real `run:` execution needs the declared `shell` to exist on the host (`cmd`/legacy `powershell` only run on Windows; `bash`/`pwsh`/`sh`/`python` are cross-platform). Where a shell is absent we fail with a clear, actionable message rather than silently mis-executing. The project's own CI matrix spans **Linux/macOS/Windows × supported Node versions**.
 
 ### API stability
-The unified surface (`mock`/`run`/`expect`, `actspec()`/`actspecWorkflow()`) is the contract and follows **semver with an explicit promise: no breaking changes to it across v0.1→v0.4**. New action types and scopes may *add* surface (new matchers, new entries) but never reshape what exists — enforced by `@arethetypeswrong`/API-extractor snapshots in CI.
+The unified surface (`mock`/`run`/`expect`, `actharness()`/`actharnessWorkflow()`) is the contract and follows **semver with an explicit promise: no breaking changes to it across v0.1→v0.4**. New action types and scopes may *add* surface (new matchers, new entries) but never reshape what exists — enforced by `@arethetypeswrong`/API-extractor snapshots in CI.
 
 ### Threat model
-Stated plainly so no one mistakes the isolation for security: actspec executes the real shell/JS in your `action.yml` under a scoped env in a temp workspace. That boundary exists for **hermeticity and determinism**, not containment — a malicious action could still touch the filesystem or network the sandbox doesn't explicitly block. **Test actions you trust.** Hardened isolation (full `vm`/container/network-deny) is an opt-in upgrade path, not the default promise.
+Stated plainly so no one mistakes the isolation for security: actharness executes the real shell/JS in your `action.yml` under a scoped env in a temp workspace. That boundary exists for **hermeticity and determinism**, not containment — a malicious action could still touch the filesystem or network the sandbox doesn't explicitly block. **Test actions you trust.** Hardened isolation (full `vm`/container/network-deny) is an opt-in upgrade path, not the default promise.
 
 ## Package layout (pnpm monorepo)
 
 **One repo, many independently-published packages** — pnpm workspaces + [changesets](https://github.com/changesets/changesets). A monorepo here is *not* a single package: each module below ships to npm with its own version and `package.json`, so consumers install exactly what they need. The plugin architecture maps 1:1 to packages, and the expression engine is independently valuable.
 
 ```
-actspec                 meta package — re-exports the common surface
-@actspec/core           parser · runtime · protocol · context · mock registry · executor registry
-@actspec/expressions    standalone ${{ }} engine (lexer/parser/evaluator + fixtures)  (v0.0)
-@actspec/composite      composite executor + ShellSandbox             (v0.1)
-@actspec/node           node executor + JsSandbox + net mock           (v0.2)
-@actspec/docker         docker executor + ContainerSandbox             (v0.3)
-@actspec/workflow       WorkflowRunner (job DAG · matrix · needs)      (v0.4)
-@actspec/coverage       CoverageCollector + lcov/terminal reporters    (all versions)
-@actspec/matchers       actspec's own expect() + result/mock matchers; no Jest/Vitest dep
-@actspec/fixtures       github/runner defaults + event payload factories
-@actspec/types          zero-dep DAG root: all public interfaces + GITHUB_DEFAULTS/RUNNER_DEFAULTS
-@actspec/gen            codegen: action.yml → typed Action<In, Out>          (post-v0.1)
-@actspec/cli            `actspec test` (runner + globals + coverage) + `actspec run`
+actharness                 meta package — re-exports the common surface
+@actharness/core           parser · runtime · protocol · context · mock registry · executor registry
+@actharness/expressions    standalone ${{ }} engine (lexer/parser/evaluator + fixtures)  (v0.0)
+@actharness/composite      composite executor + ShellSandbox             (v0.1)
+@actharness/node           node executor + JsSandbox + net mock           (v0.2)
+@actharness/docker         docker executor + ContainerSandbox             (v0.3)
+@actharness/workflow       WorkflowRunner (job DAG · matrix · needs)      (v0.4)
+@actharness/coverage       CoverageCollector + lcov/terminal reporters    (all versions)
+@actharness/matchers       actharness's own expect() + result/mock matchers; no test-framework dependency
+@actharness/fixtures       github/runner defaults + event payload factories
+@actharness/types          zero-dep DAG root: all public interfaces + GITHUB_DEFAULTS/RUNNER_DEFAULTS
+@actharness/gen            codegen: action.yml → typed Action<In, Out>          (post-v0.1)
+@actharness/cli            `actharness test` (runner + globals + coverage) + `actharness run`
 ```
 
-Executors register themselves with `@actspec/core` via a dedicated **side-effectful registration entry** (the one module excepted from the package's `sideEffects: false`, so bundlers never prune it — [D25](DECISIONS.md#d25--sideeffects-false-with-the-registration-entry-excepted)); installing `@actspec/docker` is what teaches the runtime about `using: docker`, and `@actspec/workflow` adds the `actspecWorkflow()` orchestrator. `@actspec/coverage` is a passive consumer of results — adding it never changes execution. The public API never changes shape as packages are added.
+Executors register themselves with `@actharness/core` via a dedicated **side-effectful registration entry** (the one module excepted from the package's `sideEffects: false`, so bundlers never prune it — [D25](DECISIONS.md#d25--sideeffects-false-with-the-registration-entry-excepted)); installing `@actharness/docker` is what teaches the runtime about `using: docker`, and `@actharness/workflow` adds the `actharnessWorkflow()` orchestrator. `@actharness/coverage` is a passive consumer of results — adding it never changes execution. The public API never changes shape as packages are added.
 
-**Why monorepo, not polyrepo.** These packages are tightly coupled — they share core types (`ExecutionCall`, `RunResult`, `StepResult`, `ContextStore`). A single change often spans several (adding `phase` to `StepResult` touched core + composite + node + matchers + coverage). In a monorepo that's one atomic PR; across separate repos it's a publish-and-bump chain per change — daily friction during the churn-heavy early phase, plus harder cross-package integration tests and the conformance corpus. Polyrepo would only pay off if these were loosely coupled or team-owned on divergent cadences; they aren't. `@actspec/expressions` is the one package with a genuine standalone life — develop it here, split it out later *only* if it earns its own following.
+**Why monorepo, not polyrepo.** These packages are tightly coupled — they share core types (`ExecutionCall`, `RunResult`, `StepResult`, `ContextStore`). A single change often spans several (adding `phase` to `StepResult` touched core + composite + node + matchers + coverage). In a monorepo that's one atomic PR; across separate repos it's a publish-and-bump chain per change — daily friction during the churn-heavy early phase, plus harder cross-package integration tests and the conformance corpus. Polyrepo would only pay off if these were loosely coupled or team-owned on divergent cadences; they aren't. `@actharness/expressions` is the one package with a genuine standalone life — develop it here, split it out later *only* if it earns its own following.
 
 ## Roadmap → architecture mapping
 
 | Version | Adds | New code | Coverage gained | API change |
 |---------|------|----------|-----------------|------------|
-| **v0.0** | `@actspec/expressions` standalone | `@actspec/expressions` — full engine, corpus (459 vectors), fuzz CI | none (no test framework yet) | — standalone package |
-| **v0.1** | `using: composite` | `@actspec/{types,core,composite,coverage,matchers,fixtures,cli}`, ShellSandbox, conformance corpus | step · `if:`-branch · input/default | — baseline |
-| **v0.2** | `using: node20/24/…` | `@actspec/node`, JsSandbox, net mock | + JS line coverage (V8/lcov) | none (same `mock/run/expect`) |
-| **v0.3** | `using: docker` | `@actspec/docker`, ContainerSandbox | (Docker actions covered as steps) | none |
-| **v0.4** | **workflows** | `@actspec/workflow`, WorkflowRunner | + job coverage · `needs:` edges | adds `actspecWorkflow()` + job matchers; action surface untouched |
+| **v0.0** | `@actharness/expressions` standalone | `@actharness/expressions` — full engine, corpus (459 vectors), fuzz CI | none (no test framework yet) | — standalone package |
+| **v0.1** | `using: composite` | `@actharness/{types,core,composite,coverage,matchers,fixtures,cli}`, ShellSandbox, conformance corpus | step · `if:`-branch · input/default · output | — baseline |
+| **v0.2** | `using: node20/24/…` | `@actharness/node`, JsSandbox, net mock | + JS line coverage (V8/lcov) | none (same `mock/run/expect`) |
+| **v0.3** | `using: docker` | `@actharness/docker`, ContainerSandbox | (Docker actions covered as steps) | none |
+| **v0.4** | **workflows** | `@actharness/workflow`, WorkflowRunner | + job coverage · `needs:` edges | adds `actharnessWorkflow()` + job matchers; action surface untouched |
 | **v0.5+** | future `using:` types | new executor package | inherits step + branch free | none — register an executor |
 
 Two extension axes, neither touches the existing public API:
@@ -310,8 +311,8 @@ Two extension axes, neither touches the existing public API:
 Held from **v0.1** so the roadmap stays additive rather than a series of refactors:
 
 1. **`StepRunner` and `ContextStore` are action-agnostic.** They operate on *a step list + a context store*, never on "an action manifest." This is what lets the v0.4 `WorkflowRunner` reuse them per job without rewrites.
-2. **Every `RunResult` records each `if:` outcome and step result, is stamped with its source id, and is pushed to the `CoverageCollector`** — core notifies a process-global run sink (`registerRunListener`, keyed `globalThis[Symbol.for('actspec.runSink')]`) that coverage subscribes to, so **core never imports coverage** ([D1](DECISIONS.md#d1--coverage-observes-runs-via-a-global-run-sink)). This is what keeps coverage a thin, passive consumer — and gives every future executor/orchestrator step + branch coverage for free.
-3. **The unified surface (`mock`/`run`/`expect`) is type- and scope-blind.** New executors and orchestrators may *add* entries (`actspecWorkflow()`, job matchers) but never reshape what exists.
+2. **Every `RunResult` records each `if:` outcome and step result, is stamped with its source id, and is pushed to the `CoverageCollector`** — core notifies a process-global run sink (`registerRunListener`, keyed `globalThis[Symbol.for('actharness.runSink')]`) that coverage subscribes to, so **core never imports coverage** ([D1](DECISIONS.md#d1--coverage-observes-runs-via-a-global-run-sink)). This is what keeps coverage a thin, passive consumer — and gives every future executor/orchestrator step + branch coverage for free.
+3. **The unified surface (`mock`/`run`/`expect`) is type- and scope-blind.** New executors and orchestrators may *add* entries (`actharnessWorkflow()`, job matchers) but never reshape what exists.
 
 ## Supported surface (the whole GitHub Actions environment)
 
@@ -351,7 +352,7 @@ The promise is *complete* coverage of what teams actually ship — not just the 
 ### Contexts, protocol & lifecycle (all versions)
 | Feature | Handling |
 |---------|----------|
-| Contexts: `github env runner job steps inputs secrets vars strategy matrix needs` | full defaults via `@actspec/types`, factories via `@actspec/fixtures` |
+| Contexts: `github env runner job steps inputs secrets vars strategy matrix needs` | full defaults via `@actharness/types`, factories via `@actharness/fixtures` |
 | Runner files: `GITHUB_{OUTPUT,ENV,PATH,STATE,STEP_SUMMARY}` | read/written, heredoc + `name=value` |
 | Workflow commands: `::set-output:: ::save-state:: ::add-mask:: ::error/warning/notice:: ::group:: ::add-path::` | parsed from stdout |
 | Action lifecycle `pre`/`main`/`post` (+ `pre-if`/`post-if`) | run, ordered, state-threaded |
@@ -364,7 +365,7 @@ We claim complete coverage of one thing precisely, and explicitly decline anothe
 
 **In scope — an action/workflow's own observable logic** (everything in the matrix above): steps, the `${{ }}` expression language, the runner-file protocol and workflow commands, inputs/outputs, `if:` conditions, the pre/main/post lifecycle, mockable dependencies, and `on:` trigger filters. Fidelity here is **conformance-tested** against the real runner (vendored vectors + golden captures), not asserted — "byte-identical including undocumented quirks" is something the corpus *converges on*, never something we promise on day one. Known soft spots we track openly: marginal expression coercion/case-folding, and `hashFiles()`'s exact algorithm (it ships its real algorithm in v0.0, overridable via the `functions` hook; [D6](DECISIONS.md#d6--hashfiles-ships-its-real-algorithm-in-v0.1)).
 
-**Deliberately out of scope — the hosted substrate and live services.** Reproducing these would make actspec an *integration* runner (that's `act`/real CI) and break the hermetic, deterministic promise that makes it a *unit* tester:
+**Deliberately out of scope — the hosted substrate and live services.** Reproducing these would make actharness an *integration* runner (that's `act`/real CI) and break the hermetic, deterministic promise that makes it a *unit* tester:
 
 | Not reproduced | Why it's correct to exclude | What you get instead |
 |----------------|-----------------------------|----------------------|
@@ -380,10 +381,10 @@ The line is the product: **unit test (us) vs integration run (`act`).** Anything
 This document is a strong *blueprint*, but a blueprint's confidence has a ceiling: several claims are demonstrated only when code exists. We name them so the plan is honest about what's settled vs. what's still a bet.
 
 ### Validate before building wide: the walking skeleton
-The riskiest assumptions should be proven by a **thin vertical slice** before all packages are built — one composite action, end to end: `actspec('./action.yml').run()` → a real `bash` `run:` step → `$GITHUB_OUTPUT` parsed → one `${{ }}` expression evaluated → one matcher asserting the output. It exercises the protocol, a slice of the evaluator, and the API surface at once. It either validates the design or surfaces the needed change now — far cheaper than after 9 packages exist.
+The riskiest assumptions should be proven by a **thin vertical slice** before all packages are built — one composite action, end to end: `actharness('./action.yml').run()` → a real `bash` `run:` step → `$GITHUB_OUTPUT` parsed → one `${{ }}` expression evaluated → one matcher asserting the output. It exercises the protocol, a slice of the evaluator, and the API surface at once. It either validates the design or surfaces the needed change now — far cheaper than after 9 packages exist.
 
 ### The three highest-risk assumptions
-1. **Expression-engine fidelity** — the single highest-risk component. "We match the C# runner" is aspiration until it runs green against the conformance corpus. *Mitigation:* build `@actspec/expressions` corpus-first.
+1. **Expression-engine fidelity** — the single highest-risk component. "We match the C# runner" is aspiration until it runs green against the conformance corpus. *Mitigation:* build `@actharness/expressions` corpus-first.
 2. **JS sandbox transparency (v0.2)** — "wire the protocol env-files and real `@actions/core` just works." Plausible, but ESM-vs-CJS entrypoints, bundled actions, `process.exit`, and Octokit interception are where it can break. *Mitigation:* a sandbox spike against 3–4 real published actions before committing the design.
 3. **Unified-API ergonomics** — that `mock/run/expect` truly feels the same across composite/node/docker/workflow. *Mitigation:* write ~20 real tests by hand against existing public actions and feel the friction.
 
@@ -392,7 +393,7 @@ The mock surface is slightly **two-headed**: `mock()` for `uses:` dependencies v
 
 ### Scope discipline — explicitly deferred past v0.1
 Good ideas that are *not* v0.1, so the first release stays small, correct, and fast:
-- `@actspec/gen` (typed-action codegen)
+- `@actharness/gen` (typed-action codegen)
 - CLI `--record`/replay
 - Hardened `isolation: vm | container | deny-net`
 

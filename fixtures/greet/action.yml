@@ -1,6 +1,6 @@
 name: Greet
 description: Composite walking-skeleton fixture — the first integration gate for v0.1.
-author: actspec
+author: actharness
 
 inputs:
   name:

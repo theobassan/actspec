@@ -1,0 +1,58 @@
+{
+  "name": "@actharness/cli",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "actharness CLI — actharness test, actharness run, actharness init",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/actharness/actharness",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "bin": {
+    "actharness": "./dist/cli.js"
+  },
+  "sideEffects": false,
+  "exports": {
+    "./register": {
+      "import": {
+        "types": "./dist/register.d.ts",
+        "default": "./dist/register.js"
+      }
+    },
+    "./lifecycle": {
+      "import": {
+        "types": "./dist/lifecycle.d.ts",
+        "default": "./dist/lifecycle.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/fix-node-imports.mjs",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@actharness/composite": "workspace:*",
+    "@actharness/core": "workspace:*",
+    "@actharness/coverage": "workspace:*",
+    "@actharness/matchers": "workspace:*",
+    "@actharness/types": "workspace:*",
+    "glob": "^13.0.6",
+    "tsx": "^4.22.4",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

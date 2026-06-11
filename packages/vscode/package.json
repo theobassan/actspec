@@ -1,0 +1,51 @@
+{
+  "name": "@actharness/vscode",
+  "displayName": "actharness",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/actharness/actharness",
+    "directory": "packages/vscode"
+  },
+  "description": "GitHub Actions unit testing — run actharness tests from the Test Explorer",
+  "publisher": "actharness",
+  "version": "0.1.0",
+  "license": "MIT",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.88.0",
+    "node": ">=22"
+  },
+  "categories": ["Testing"],
+  "activationEvents": [
+    "workspaceContains:**/*.actharness.ts",
+    "workspaceContains:**/*.test.ts"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "actharness",
+      "properties": {
+        "actharness.nodeExecutable": {
+          "type": "string",
+          "default": "node",
+          "description": "Path to the Node.js executable. Useful when using mise/nvm."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/vscode": "^1.120.0",
+    "@vitest/coverage-v8": "^4.1.8",
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.8"
+  }
+}

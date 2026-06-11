@@ -1,5 +1,5 @@
 import type { RunInput, GitHubContext, RunnerContext } from './types.js';
-import type { ExpressionContexts } from '@actspec/expressions';
+import type { ExpressionContexts } from '@actharness/expressions';
 
 export interface JobStatus {
   success: boolean;
@@ -8,8 +8,8 @@ export interface JobStatus {
 }
 
 const DEFAULT_GITHUB: GitHubContext = {
-  repository: 'actspec/test-repo',
-  repositoryOwner: 'actspec',
+  repository: 'actharness/test-repo',
+  repositoryOwner: 'actharness',
   sha: '0000000000000000000000000000000000000000',
   ref: 'refs/heads/main',
   refName: 'main',
@@ -27,8 +27,8 @@ const DEFAULT_GITHUB: GitHubContext = {
 const DEFAULT_RUNNER: RunnerContext = {
   os: 'Linux',
   arch: 'X64',
-  name: 'actspec',
-  temp: '/tmp/actspec-runner',
+  name: 'actharness',
+  temp: '/tmp/actharness-runner',
   toolCache: '/opt/hostedtoolcache',
 };
 

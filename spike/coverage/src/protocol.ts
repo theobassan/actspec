@@ -13,7 +13,7 @@ export interface ProtocolFiles {
 }
 
 export function allocateProtocolFiles(): ProtocolFiles {
-  const dir = mkdtempSync(join(tmpdir(), 'actspec-'));
+  const dir = mkdtempSync(join(tmpdir(), 'actharness-'));
   const output = join(dir, 'output');
   const env = join(dir, 'env');
   const state = join(dir, 'state');

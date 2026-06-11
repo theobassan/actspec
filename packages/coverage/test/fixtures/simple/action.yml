@@ -1,0 +1,8 @@
+name: Simple
+runs:
+  using: composite
+  steps:
+    - id: step1
+      name: run
+      shell: bash
+      run: echo hi

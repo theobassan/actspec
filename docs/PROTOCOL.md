@@ -1,11 +1,11 @@
-# actspec — Runner protocol spec (`@actspec/core`)
+# actharness — Runner protocol spec (`@actharness/core`)
 
 Normative spec for the **runner-file protocol** and **stdout workflow commands** — how an action communicates outputs, env, state, paths, summaries, annotations, and masks. This is the **#2 fidelity surface** after the expression language; like that one, it is grounded in source, not memory.
 
 ## Sources (grounded)
 - `actions/toolkit` — `packages/core/src/command.ts` (stdout commands + escaping), `file-command.ts` (env files + heredoc), `utils.ts` (`toCommandValue`). This is the **producer** side every JS action uses.
 - `actions/runner` — `src/Runner.Worker/ActionCommandManager.cs` (the **consumer** that parses them).
-- Round-trip rule: actspec writes the env-file paths an action appends to and **parses** what the action emits; it MUST reproduce the toolkit's encoding exactly so a real `@actions/core` action round-trips unchanged.
+- Round-trip rule: actharness writes the env-file paths an action appends to and **parses** what the action emits; it MUST reproduce the toolkit's encoding exactly so a real `@actions/core` action round-trips unchanged.
 
 ## `toCommandValue` (used everywhere a value is serialized)
 `null`/`undefined` → `''`; `string` → itself; anything else → `JSON.stringify(value)`. (So an object output becomes its JSON text.)
@@ -24,7 +24,7 @@ Format: `::name key=value,key=value::message` — one per line, written to stdou
 
 **Parsing reverses these — and `%25`→`%` MUST be decoded *last***, otherwise a literal `%0A` in the source (encoded `%250A`) decodes wrongly. Decode `%0A`/`%0D`/`%3A`/`%2C` first, then `%25`.
 
-### Command set actspec MUST parse
+### Command set actharness MUST parse
 | Command | Notes |
 |---------|-------|
 | `error` / `warning` / `notice` | → `Annotation`. Props: `title`, `file`, `line` (startLine), `endLine`, `col` (startColumn), `endColumn`. |
@@ -39,10 +39,10 @@ Format: `::name key=value,key=value::message` — one per line, written to stdou
 | `add-path` *(deprecated)* | → prepend PATH. |
 
 ## Env files
-The runner sets these env vars to **temp file paths**; the action *appends* to them. actspec allocates the temp files per invocation, points the vars at them, and parses them **after each step** (env/path/state apply to subsequent steps; output to `steps.<id>.outputs`).
+The runner sets these env vars to **temp file paths**; the action *appends* to them. actharness allocates the temp files per invocation, points the vars at them, and parses them **after each step** (env/path/state apply to subsequent steps; output to `steps.<id>.outputs`).
 
 ### Key-value files — `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_STATE`
-Two accepted line forms (actspec MUST parse both):
+Two accepted line forms (actharness MUST parse both):
 1. **Single line:** `NAME=VALUE`.
 2. **Heredoc** (what modern `@actions/core` always writes):
    ```
@@ -57,7 +57,7 @@ Two accepted line forms (actspec MUST parse both):
 - `GITHUB_PATH`: each appended line is a directory **prepended** to `PATH` for later steps.
 - `GITHUB_STEP_SUMMARY`: raw Markdown, appended; surfaced on the result, not parsed.
 
-## What actspec implements
+## What actharness implements
 - **Write side:** allocate temp files, set `GITHUB_{OUTPUT,ENV,PATH,STATE,STEP_SUMMARY}` + the env an action expects; a real `@actions/core` "just works."
 - **Read side:** after a step, parse the key-value/line files and the stdout command stream (honoring `stop-commands`, decoding in the correct order), producing `steps.<id>.outputs`, context `env`, `PATH`, state, annotations, masks.
 - **Masking:** every `add-mask` value and every provided secret is replaced with `***` in captured logs and in `--json`/snapshot output.

@@ -1,4 +1,4 @@
-import { evaluateTemplate } from '@actspec/expressions';
+import { evaluateTemplate } from '@actharness/expressions';
 import { buildContexts, buildEnvVars, resolveInputValues } from './context.js';
 import { runComposite, makeRunResult } from './composite.js';
 import { runNode } from './node.js';

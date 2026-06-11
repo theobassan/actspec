@@ -1,0 +1,11 @@
+name: With Outputs
+outputs:
+  greeting:
+    description: The greeting
+    value: ${{ steps.step1.outputs.greeting }}
+runs:
+  using: composite
+  steps:
+    - id: step1
+      shell: bash
+      run: echo "greeting=hello" >> "$GITHUB_OUTPUT"

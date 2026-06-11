@@ -1,4 +1,4 @@
-# Spike — `@actspec/node` JS sandbox transparency
+# Spike — `@actharness/node` JS sandbox transparency
 
 > **Throwaway-or-promote.** A thin vertical slice that de-risks the **second-highest-risk component** ([ARCHITECTURE → highest-risk assumptions](../../docs/ARCHITECTURE.md#the-three-highest-risk-assumptions)) *before* v0.2 is built. The core bet being tested: *"wire the protocol env-files and real `@actions/core` just works."* The spike is judged against real published actions — never against toy fixtures that paper over the hard cases.
 >
@@ -10,7 +10,7 @@ v0.1 is composite-only. Before committing to the v0.2 `JsSandbox` design, [ARCHI
 
 > *"ESM vs CJS entrypoints, bundled (`ncc`) actions, `process.exit`, and Octokit interception are where it can break."*
 
-Building the node executor on an untested sandbox design would mean discovering the hard cases after `@actspec/node`, `@actspec/coverage` (jsLines), the network mock layer, and `mockGitHubApi` all exist. The spike de-risks those, cheaply, before any of that is written.
+Building the node executor on an untested sandbox design would mean discovering the hard cases after `@actharness/node`, `@actharness/coverage` (jsLines), the network mock layer, and `mockGitHubApi` all exist. The spike de-risks those, cheaply, before any of that is written.
 
 ## The question it answers
 
@@ -42,7 +42,7 @@ Does a `worker_thread` sandbox, with:
 
 ## Explicitly out of scope
 
-- The full `@actspec/node` package (dual ESM/CJS build, `exports` map, API Extractor, publication).
+- The full `@actharness/node` package (dual ESM/CJS build, `exports` map, API Extractor, publication).
 - `jsLines` / V8→Istanbul coverage (v0.2 depth; can be probed for feasibility, not implemented).
 - Hardened isolation (`vm` context, `deny-net` without undici). The spike uses `worker_thread` + scoped env; deeper isolation is an upgrade path, not v0.2 scope.
 - `mockNetwork` (arbitrary URL matching beyond Octokit routes) — feasibility probe only if time allows.
@@ -68,14 +68,14 @@ These are chosen to cover the four hard cases the architecture calls out. The im
 **Test shape:**
 ```ts
 test('basic node action: input → output via $GITHUB_OUTPUT', async () => {
-  const action = actspec('./action.yml');   // baseline node action
+  const action = actharness('./action.yml');   // baseline node action
   const result = await action.run({ inputs: { greeting: 'Hello' } });
   expect(result).toHaveSucceeded();
   expect(result).toHaveOutput('message', 'Hello World');
 });
 
 test('core.setFailed → conclusion failure, test runner survives', async () => {
-  const action = actspec('./action.yml');
+  const action = actharness('./action.yml');
   const result = await action.run({ inputs: { greeting: '' } }); // triggers setFailed
   expect(result).toHaveFailed();
 });
@@ -90,7 +90,7 @@ test('core.setFailed → conclusion failure, test runner survives', async () => 
 **Test shape:**
 ```ts
 test('ncc-bundled action executes from its bundle', async () => {
-  const action = actspec('./action.yml');   // ncc bundle
+  const action = actharness('./action.yml');   // ncc bundle
   const result = await action.run({ inputs: { /* minimal required */ } });
   expect(result).toHaveSucceeded();
 });
@@ -105,7 +105,7 @@ test('ncc-bundled action executes from its bundle', async () => {
 **Test shape:**
 ```ts
 test('mockGitHubApi intercepts Octokit inside the worker', async () => {
-  const action = actspec('./action.yml');   // Octokit caller
+  const action = actharness('./action.yml');   // Octokit caller
 
   action.mockGitHubApi({
     'GET /repos/{owner}/{repo}/pulls': () => ({ data: [{ number: 42 }] }),
@@ -126,7 +126,7 @@ test('mockGitHubApi intercepts Octokit inside the worker', async () => {
 **Test shape:**
 ```ts
 test('pre runs before main, post runs after; GITHUB_STATE threads', async () => {
-  const action = actspec('./action.yml');   // pre/main/post action
+  const action = actharness('./action.yml');   // pre/main/post action
   const result = await action.run({ inputs: { /* ... */ } });
 
   const pre  = result.steps.find(s => s.phase === 'pre')!;
@@ -147,14 +147,14 @@ The spike is not complete until its findings are written to a **durable, named d
 
 1. **Which real actions were used** — name, repo, version, `using:` value, CJS/ESM/ncc.
 2. **H1–H7 outcome** — `✅` / `❌` / `⚠️ (works with caveat)` per hypothesis, with the observed failure for any `❌`.
-3. **Design gaps** — anything that required a workaround, with the proposed fix and its scope (is it a sandbox implementation detail, or does it affect the `JsSandbox` contract / `@actspec/node`'s public surface?).
+3. **Design gaps** — anything that required a workaround, with the proposed fix and its scope (is it a sandbox implementation detail, or does it affect the `JsSandbox` contract / `@actharness/node`'s public surface?).
 4. **H5 failure mode** — the exact failure observed without the `process.exit` trap (error message, whether the test runner survived).
 5. **ncc bundle compatibility note** — did the bundled `require()` resolution work? Did any global patching inside the bundle interfere with the sandbox env?
 6. **`jsLines` feasibility probe** — a one-paragraph note on whether V8 coverage (c8) can be collected from the worker with no extra sandbox infrastructure. Non-blocking; a `⚠️` is a valid answer.
 
 ## Exit — what we decide after
 
-- **If all four scenarios pass, no design gaps:** build `@actspec/node` as specced in [v0.2.md](../versions/v0.2.md) — no API or sandbox design changes needed.
+- **If all four scenarios pass, no design gaps:** build `@actharness/node` as specced in [v0.2.md](../versions/v0.2.md) — no API or sandbox design changes needed.
 - **If design gaps surface that affect `JsSandbox` contract only** (e.g., a worker launch option): update [v0.2.md](../versions/v0.2.md) and [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) before building.
 - **If a gap forces an API surface change** (e.g., `mockGitHubApi` shape needs to change, or `StepResult` shape for node phases is wrong): update [API.md](../../docs/API.md) and its rationale **before** v0.2 starts — so the surface is settled and v0.1's published API.md remains accurate.
 - **If ESM or ncc prove structurally incompatible with `worker_thread`:** escalate as a design question (alternative sandbox: subprocess + IPC? vm context?); record in the findings doc before any v0.2 work begins.

@@ -13,9 +13,9 @@
 | H2 | `ContextStore` handles `needs` via extension | ✅ | `needsCtx` is an optional parameter to `buildContexts`; no interface shape change; steps read `needs.*` correctly |
 | H3 | `JobResult extends RunResult` is structurally correct | ⚠️ | **Works with a required fix** — see blocking finding #1 below |
 | H4 | `WorkflowResult` composes with existing matchers | ✅ | `toHaveRunJob` + `toHaveRunStep` + `toHaveOutput` all used on the same result in one test without friction |
-| H5 | `actspecWorkflow()` is a pure add | ✅ | `src/index.ts` only imports workflow-specific modules; zero changes to `composite.ts`, `context.ts`, `mock.ts`, `protocol.ts` |
+| H5 | `actharnessWorkflow()` is a pure add | ✅ | `src/index.ts` only imports workflow-specific modules; zero changes to `composite.ts`, `context.ts`, `mock.ts`, `protocol.ts` |
 | H6 | `needs:` DAG + matrix in the current shape | ✅ | Matrix expansion, fail-fast cancellation, and job outputs all fit the `WorkflowResult`/`JobResult` shape from API.md §10 — with the type fix from H3 applied |
-| H7 | `wouldTrigger` is standalone | ✅ | Reuses expression evaluator from `@actspec/expressions` unchanged; no new evaluator APIs needed; 9/9 wouldTrigger tests green |
+| H7 | `wouldTrigger` is standalone | ✅ | Reuses expression evaluator from `@actharness/expressions` unchanged; no new evaluator APIs needed; 9/9 wouldTrigger tests green |
 
 ---
 
@@ -128,9 +128,9 @@ Per-job needs threading is entirely in `WorkflowRunner`. The pattern:
 
 `wouldTrigger` uses:
 
-- `@actspec/expressions` `evaluate()` — only for job-level `if:` (not implemented in this spike; trigger evaluation at the workflow level doesn't need it).
+- `@actharness/expressions` `evaluate()` — only for job-level `if:` (not implemented in this spike; trigger evaluation at the workflow level doesn't need it).
 - Pattern matching on `on:` YAML structure — self-contained in `workflow.ts`.
-- No new `@actspec/core` exports needed.
+- No new `@actharness/core` exports needed.
 
 **Verdict.** Standalone. No new expression engine APIs. No new core interfaces.
 

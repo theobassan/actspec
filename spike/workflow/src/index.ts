@@ -9,7 +9,7 @@ export type { JobStatus } from './context.js';
 export { parseAction } from './parser.js';
 export { makeRunResult, runComposite } from './composite.js';
 export type {
-  ParsedAction, RunInput, RunResult, StepResult, ActspecOptions,
+  ParsedAction, RunInput, RunResult, StepResult, ActharnessOptions,
   ActionMock, ActionMockDef, ActionMockImpl, ActionMockCall,
   Annotation, RunnerContext, GitHubContext,
 } from './types.js';
@@ -31,7 +31,7 @@ export interface Workflow {
   run(input?: RunInput): Promise<WorkflowResult>;
 }
 
-export function actspecWorkflow(source: string): Workflow {
+export function actharnessWorkflow(source: string): Workflow {
   const workflowPath = isAbsolute(source) ? source : resolve(process.cwd(), source);
   const workflow = parseWorkflow(workflowPath);
   const registry = new MockRegistry();

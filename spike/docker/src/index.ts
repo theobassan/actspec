@@ -1,4 +1,4 @@
-// Docker spike entry point: actspec() for docker and composite actions.
+// Docker spike entry point: actharness() for docker and composite actions.
 
 import { resolve as resolvePath, dirname, extname, isAbsolute } from 'path';
 import {
@@ -22,7 +22,7 @@ export interface DockerAction {
   run(input?: RunInput): Promise<RunResult>;
 }
 
-export function actspec(source: string, options?: { container?: ContainerBackend }): DockerAction {
+export function actharness(source: string, options?: { container?: ContainerBackend }): DockerAction {
   const sourcePath = isAbsolute(source) ? source : resolvePath(process.cwd(), source);
   const actionDir = (sourcePath.endsWith('.yml') || sourcePath.endsWith('.yaml'))
     ? dirname(sourcePath)

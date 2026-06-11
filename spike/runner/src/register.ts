@@ -1,5 +1,5 @@
 // register.ts — loaded via --import before each test file.
-// Injects describe/it/test/lifecycle hooks, stub actspec(), and expect() into globalThis
+// Injects describe/it/test/lifecycle hooks, stub actharness(), and expect() into globalThis
 // so test files need zero imports. Also wires the coverage fragment flush (H6).
 
 import { describe, it, test, before, after, beforeEach, afterEach } from 'node:test';
@@ -15,7 +15,7 @@ Object.assign(globalThis, {
 });
 
 // Stub RunResult — fixed shape the matchers assert against.
-// Replaced by the real @actspec/core result when the package is built.
+// Replaced by the real @actharness/core result when the package is built.
 const stubStep = {
   id: 'hello',
   name: 'Say hello',
@@ -48,9 +48,9 @@ function makeActionMock() {
   };
 }
 
-// Stub actspec() global — returns fake RunResult so test files can call
-// actspec('./action.yml').run(...) without real action execution.
-(globalThis as Record<string, unknown>)['actspec'] = (_source: string) => {
+// Stub actharness() global — returns fake RunResult so test files can call
+// actharness('./action.yml').run(...) without real action execution.
+(globalThis as Record<string, unknown>)['actharness'] = (_source: string) => {
   const mock = makeActionMock();
   return {
     mock: (_ref: string, _def?: unknown) => mock,
@@ -58,13 +58,13 @@ function makeActionMock() {
   };
 };
 
-// Inject actspec's own expect() — no Jest/Vitest dep (H4).
+// Inject actharness's own expect() — no Jest/Vitest dep (H4).
 (globalThis as Record<string, unknown>)['expect'] = expect;
 
 // H6: coverage fragment flush — write per-worker fragment on exit.
-// Each worker subprocess writes a stub Istanbul FileCoverageData to ACTSPEC_COVERAGE_TMP.
+// Each worker subprocess writes a stub Istanbul FileCoverageData to ACTHARNESS_COVERAGE_TMP.
 // The host (cli.ts) reads and merges all fragments after all workers complete (H7).
-const coverageTmpDir = process.env['ACTSPEC_COVERAGE_TMP'];
+const coverageTmpDir = process.env['ACTHARNESS_COVERAGE_TMP'];
 if (coverageTmpDir) {
   process.on('exit', () => {
     const fragment = {

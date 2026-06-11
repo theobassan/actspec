@@ -1,4 +1,4 @@
-// cli.ts — minimal actspec test runner on top of node:test.
+// cli.ts — minimal actharness test runner on top of node:test.
 // Proves: file discovery (H3), --import globals injection (H1+H2), parallel workers (H3),
 // pass/fail collection, and coverage fragment merge (H6+H7).
 
@@ -62,7 +62,7 @@ if (files.length === 0) {
 // ── coverage setup ───────────────────────────────────────────────────────────
 
 const coverageTmpDir = coverageFlag
-  ? join(tmpdir(), `actspec-cov-${Date.now()}`)
+  ? join(tmpdir(), `actharness-cov-${Date.now()}`)
   : undefined;
 
 const coverageOutDir = './coverage';
@@ -70,7 +70,7 @@ const coverageOutDir = './coverage';
 if (coverageTmpDir) {
   mkdirSync(coverageTmpDir, { recursive: true });
   // Workers inherit parent env — register.ts reads this to know it should flush.
-  process.env['ACTSPEC_COVERAGE_TMP'] = coverageTmpDir;
+  process.env['ACTHARNESS_COVERAGE_TMP'] = coverageTmpDir;
 }
 
 // ── run files in parallel workers ────────────────────────────────────────────

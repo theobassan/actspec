@@ -1,47 +1,188 @@
-# actspec
+<div align="center">
+  <img src="icon.png" width="96" alt="actharness">
+  <h1>actharness</h1>
+  <p>Unit testing for GitHub Actions.</p>
+  <a href="https://www.npmjs.com/package/actharness"><img src="https://img.shields.io/npm/v/actharness?color=3fb950&label=npm" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3fb950" alt="license"></a>
+</div>
 
-**Unit testing for GitHub Actions — Jest, but for `action.yml`.**
+<br>
 
-Test an action in isolation, hermetically, with no real GitHub runner and no network: mock external `uses:` calls, simulate the runner protocol (`$GITHUB_OUTPUT`, `$GITHUB_ENV`, …), evaluate the `${{ }}` expression language, and assert on which steps ran, what was passed to mocks, what outputs were set, and step conclusions — all behind one unified API regardless of action type.
+Test composite actions locally, hermetically, with no real GitHub runner and no network. Mock external `uses:` calls, simulate the runner protocol (`$GITHUB_OUTPUT`, `$GITHUB_ENV`, …), evaluate `${{ }}` expressions, and assert on step results — all behind one unified API.
 
-```ts
-import { actspec } from 'actspec';
+## Install
 
-const action = actspec('./action.yml');           // composite / node / docker — caller doesn't care
-action.mock('actions/checkout@v4', { outputs: { ref: 'abc123' } });
-const result = await action.run({ inputs: { name: 'World' } });
-
-expect(result).toHaveSucceeded();
-expect(result).toHaveOutput('greeting', 'Hello World');
+```bash
+npm install --save-dev actharness
 ```
 
-> **Status: design + v0.1 specification complete; implementation pending.** This repository currently holds the full design and the build-ready v0.1 spec. The hardest pieces (the expression engine and the runner protocol) are **grounded against the GitHub runner's own source** with conformance corpora, not written from memory.
+## Quick start
 
-## Roadmap
-v0.0 expressions → v0.1 composite → v0.2 node/JS → v0.3 docker → v0.4 workflows → v0.5+ future types. The unified `mock` / `run` / `expect` surface is stable across all of them (a new action type is a new executor, never new public API).
+```yaml
+# action.yml
+name: Greet
+inputs:
+  name:
+    default: nobody
+outputs:
+  greeting:
+    value: ${{ steps.hello.outputs.greeting }}
+runs:
+  using: composite
+  steps:
+    - id: hello
+      shell: bash
+      run: echo "greeting=Hello ${{ inputs.name }}" >> "$GITHUB_OUTPUT"
+```
 
-## Repository map
-| Path | What |
-|------|------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The model: executors, orchestrators, fidelity, coverage, the deliberate boundary, risks |
-| [docs/API.md](docs/API.md) | The public API surface (`actspec`, `run`, mocks, matchers, coverage, CLI) |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | How every module is built + Definition of Done + CI matrix |
-| [docs/EXPRESSIONS.md](docs/EXPRESSIONS.md) | The `${{ }}` engine, grounded against the C# runner |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | The runner-file protocol + workflow commands, grounded against `@actions/toolkit` |
-| [docs/CONTEXTS.md](docs/CONTEXTS.md) | `github`/`runner` context schemas + defaults; event payloads |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | The *why* behind key design decisions (rationale + rejected alternatives); the *what* is mirrored inline in the specs |
-| [specs/](specs/) | Build specs — `versions/v0.1.md` (deep), `v0.2–v0.4` (stubs), `modules/*` (contracts) |
-| [corpus/](corpus/) | Conformance corpora — `expressions/` (459 vectors, full harvest), `protocol/` |
-| [fixtures/](fixtures/) | Canonical acceptance fixtures (start with `greet/`) |
+```ts
+// action.test.ts — no imports needed when running via `actharness test`
 
-## Building actspec (for the implementing agent)
-1. **Step 0 — scaffold** a pnpm workspace per [CONVENTIONS](docs/CONVENTIONS.md): root `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, changesets, lint/format, CI.
-2. **Build in order** — follow the dependency DAG in [specs/versions/v0.1.md](specs/versions/v0.1.md): `expressions → core → composite → matchers → fixtures → coverage → cli`.
-3. **First gate** — make the [walking skeleton](fixtures/greet/) pass end-to-end before fanning out.
-4. Each module's contract + acceptance lives in [specs/modules/](specs/modules/); **a committed fixture/corpus outranks prose**.
+describe('greet action', () => {
+  test('greets by name', async () => {
+    const result = await actharness('./action.yml').run({ inputs: { name: 'World' } });
+
+    expect(result).toHaveSucceeded();
+    expect(result).toHaveOutput('greeting', 'Hello World');
+  });
+
+  test('applies input default', async () => {
+    const result = await actharness('./action.yml').run();
+
+    expect(result).toHaveOutput('greeting', 'Hello nobody');
+  });
+});
+```
+
+```bash
+npx actharness test
+```
+
+## Mocking
+
+Mock any `uses:` step by ref before running. The mock returns the declared outputs and records the `with:` it was called with.
+
+```ts
+describe('release action', () => {
+  test('mocks a uses: step', async () => {
+    const checkout = actharness.mock('actions/checkout@v4', { outputs: { ref: 'abc123' } });
+
+    const result = await actharness('./action.yml').run({ inputs: { name: 'World' } });
+
+    expect(result).toHaveSucceeded();
+    expect(checkout).toHaveBeenCalledWith({ ref: 'main' });
+  });
+});
+```
+
+## Matchers
+
+### Result matchers
+
+```ts
+expect(result).toHaveSucceeded()
+expect(result).toHaveFailed()
+expect(result).toHaveOutput(name, value)
+expect(result).toHaveStep(id)                        // ran (not skipped)
+expect(result).toHaveStepSucceeded(id)
+expect(result).toHaveStepFailed(id)
+expect(result).toHaveStepSkipped(id)
+expect(result).toHaveStepOutput(id, name, value)
+expect(result).toHaveAnnotation({ level?, message? })
+```
+
+### Step matchers
+
+Pass `result.step('id')` directly — if the step is absent, all matchers throw `"Expected step to exist, but step was not found"`.
+
+```ts
+expect(result.step('build')).toHaveSucceeded()
+expect(result.step('build')).toHaveFailed()
+expect(result.step('build')).toHaveOutput(name, value)
+expect(result.step('build')).toHaveAnnotation({ level?, message? })
+expect(result.step('build')).toHaveStdoutContaining(substring)
+expect(result.step('build')).toHaveStderrContaining(substring)
+```
+
+### Mock matchers
+
+```ts
+expect(checkout).toHaveBeenCalled()
+expect(checkout).toHaveBeenCalledTimes(2)
+expect(checkout).toHaveBeenCalledWith({ ref: 'main' })
+```
+
+All matchers support `.not` negation.
+
+## Context and event fixtures
+
+```ts
+import { actharness, github, pushEvent } from 'actharness';
+
+describe('context', () => {
+  test('uses push event context', async () => {
+    const result = await actharness('./action.yml').run({
+      inputs: { name: 'World' },
+      github: github({ event_name: 'push', repository: 'my-org/my-action' }),
+      eventPayload: pushEvent({ ref: 'refs/heads/main' }),
+    });
+
+    expect(result).toHaveSucceeded();
+  });
+});
+```
+
+## Coverage
+
+```bash
+npx actharness test --coverage
+npx actharness test --coverage --threshold steps=100 --threshold ifBranches=80
+```
+
+Emits Istanbul-compatible reports. Supported reporters: `text`, `text-summary`, `lcov`, `lcovonly`, `html`, `html-spa`, `json`, `json-summary`, `cobertura`, `clover`, `teamcity`, `none`. Coverage tracks which steps ran, which were skipped, and how each `if:` branch resolved.
+
+## CLI
+
+```bash
+npx actharness test [pattern] [--coverage] [--reporter <name>] [--coverage-dir <dir>] [--threshold k=n]
+npx actharness run <action.yml> [--input k=v] [--mock ref='{"outputs":{}}'] [--json]
+npx actharness init <action.yml>   # scaffold action.test.ts
+```
+
+## Config file
+
+Create `actharness.config.ts` (or `.js` / `.json`) in your project root to set defaults. CLI flags always override config.
+
+```ts
+// actharness.config.ts
+export default {
+  coverage: true,
+  reporters: ['lcov', 'html', 'text'],
+  coverageDir: 'coverage',
+  thresholds: { steps: 100, ifBranches: 80 },
+  patterns: ['**/*.test.ts'],
+};
+```
+
+## Packages
+
+| Package | Role |
+| --- | --- |
+| `actharness` | Meta-package — re-exports core, matchers, fixtures, composite |
+| `@actharness/cli` | `actharness test`, `actharness run`, `actharness init` |
+| `@actharness/core` | Parser, executor registry, mock resolver, run sink |
+| `@actharness/composite` | Composite executor + shell sandbox |
+| `@actharness/matchers` | `expect()` + result/step/mock matchers |
+| `@actharness/fixtures` | GitHub context and event factories |
+| `@actharness/coverage` | Istanbul-compatible step/branch/input coverage |
+| `@actharness/expressions` | `${{ }}` expression evaluator |
+| `@actharness/types` | Shared TypeScript interfaces |
+| `@actharness/vscode` | VSCode extension — test explorer integration (ships via marketplace, not npm) |
 
 ## Not in scope
-actspec is a *unit* tester, not an integration runner ([`act`](https://github.com/nektos/act) covers that) and not a linter ([`actionlint`](https://github.com/rhysd/actionlint) covers that). It does not reproduce the hosted-runner image or live backing services — those are mocked. See [ARCHITECTURE → Coverage boundary](docs/ARCHITECTURE.md#coverage-boundary).
+
+actharness is a *unit* tester — it does not boot a real runner or network. For full workflow integration testing, see [`act`](https://github.com/nektos/act). For linting, see [`actionlint`](https://github.com/rhysd/actionlint).
 
 ## License
+
 [MIT](LICENSE).

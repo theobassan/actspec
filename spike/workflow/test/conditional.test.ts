@@ -4,7 +4,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspecWorkflow } from '../src/index.js';
+import { actharnessWorkflow } from '../src/index.js';
 import type { Workflow } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,7 +14,7 @@ describe('job-level if: conditions (conditional.yml)', () => {
   let wf: Workflow;
 
   beforeEach(() => {
-    wf = actspecWorkflow(CONDITIONAL);
+    wf = actharnessWorkflow(CONDITIONAL);
   });
 
   // When build succeeds: on-success runs, on-failure is skipped, always-run runs.

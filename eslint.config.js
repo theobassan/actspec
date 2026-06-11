@@ -10,7 +10,10 @@ export default [
     languageOptions: {
       parser: tsparser,
       parserOptions: {
-        project: true,
+        project: [
+          './packages/*/tsconfig.json',
+          './packages/*/tsconfig.test.json',
+        ],
       },
     },
     plugins: {
@@ -25,6 +28,14 @@ export default [
       ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    // determinism.ts IS the injected-clock implementation — it must create Date objects.
+    // Test files pass Date values to configure the injected clock under test.
+    files: ['packages/core/src/determinism.ts', 'packages/*/test/**/*.ts'],
+    rules: {
+      'no-restricted-globals': 'off',
     },
   },
 ];

@@ -2,10 +2,10 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { FileCoverageData } from 'istanbul-lib-coverage';
 
-export const COVERAGE_TMP_DEFAULT = '/tmp/actspec-cov-spike';
+export const COVERAGE_TMP_DEFAULT = '/tmp/actharness-cov-spike';
 
 export function getCoverageTmpDir(): string {
-  return process.env['ACTSPEC_COVERAGE_TMP'] ?? COVERAGE_TMP_DEFAULT;
+  return process.env['ACTHARNESS_COVERAGE_TMP'] ?? COVERAGE_TMP_DEFAULT;
 }
 
 export function writeFragment(fragment: Record<string, FileCoverageData>): void {

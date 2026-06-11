@@ -1,6 +1,6 @@
-# Spike — coverage map + reporter pipeline (`@actspec/coverage`)
+# Spike — coverage map + reporter pipeline (`@actharness/coverage`)
 
-> **POC spike — proves the Istanbul-from-YAML coverage map, disk-first fragment merge, and reporter pipeline through real execution, under the `actspec test` runner (built on `node:test`).** Builds a minimal `CoverageCollector`, runs composite, node, and workflow tests, and verifies that all coverage layers (step, `if:`-branch, JS line, job) produce a valid, merged Istanbul report. This spike runs on top of the runner spike (`spike/runner/`) — the runner must be completed first. The spike's collector and merge script become the starting point for `@actspec/coverage`.
+> **POC spike — proves the Istanbul-from-YAML coverage map, disk-first fragment merge, and reporter pipeline through real execution, under the `actharness test` runner (built on `node:test`).** Builds a minimal `CoverageCollector`, runs composite, node, and workflow tests, and verifies that all coverage layers (step, `if:`-branch, JS line, job) produce a valid, merged Istanbul report. This spike runs on top of the runner spike (`spike/runner/`) — the runner must be completed first. The spike's collector and merge script become the starting point for `@actharness/coverage`.
 
 ## Why this spike
 
@@ -8,13 +8,13 @@ The coverage design rests on four unproven bets:
 
 **1. Istanbul-from-YAML (D19).** Istanbul is designed for JavaScript source maps. Using `istanbul-lib-coverage` to build a `FileCoverageData` where "statements" are YAML step line ranges and "branches" are `if:` true/false outcomes is novel. Whether the resulting map is valid — accepted by reporters, renderable as HTML, mergeable via `nyc merge` — is untested.
 
-**2. Disk-first fragment merge under `actspec test` (D1).** The runner executes each test file in its own worker process, so an in-memory singleton only ever sees one file's runs. The design writes per-worker fragments to a temp dir and merges them after all workers complete (CLI-managed — no `globalTeardown` config needed). Whether this wires up correctly under `node:test`'s worker model is validated here, using the runner spike's lifecycle as the substrate.
+**2. Disk-first fragment merge under `actharness test` (D1).** The runner executes each test file in its own worker process, so an in-memory singleton only ever sees one file's runs. The design writes per-worker fragments to a temp dir and merges them after all workers complete (CLI-managed — no `globalTeardown` config needed). Whether this wires up correctly under `node:test`'s worker model is validated here, using the runner spike's lifecycle as the substrate.
 
-**3. `registerRunListener` cross-worker hook (D1).** The channel is `globalThis[Symbol.for('actspec.runSink')]`. Each worker has its own `globalThis`, so coverage must register its listener inside the worker (via the runner's register hook) and write fragments to disk before the worker exits. Whether the listener fires for every `run()` call in a worker — with no silent drops — is unproven under `node:test`.
+**3. `registerRunListener` cross-worker hook (D1).** The channel is `globalThis[Symbol.for('actharness.runSink')]`. Each worker has its own `globalThis`, so coverage must register its listener inside the worker (via the runner's register hook) and write fragments to disk before the worker exits. Whether the listener fires for every `run()` call in a worker — with no silent drops — is unproven under `node:test`.
 
 **4. JS line coverage via V8 from `worker_threads`.** The node sandbox uses `worker_threads` to run JS actions. Collecting V8 coverage data from inside a worker thread and piping it into the same Istanbul fragment-merge pipeline requires inspector-level instrumentation inside the worker. Whether this works without changing the sandbox design — and whether the resulting line data merges cleanly with the YAML step map — is untested.
 
-If any of these fail after `@actspec/coverage` is built, the result is a fundamental redesign. The spike catches them cheaply, before any of that exists.
+If any of these fail after `@actharness/coverage` is built, the result is a fundamental redesign. The spike catches them cheaply, before any of that exists.
 
 ## Prerequisite
 
@@ -28,24 +28,24 @@ The coverage spike adds a second register module (`setup.ts`) that registers the
 runner/cli.ts --import ../coverage/setup.ts 'test/**/*.ts' --coverage
 ```
 
-This is structurally identical to how `@actspec/coverage` will work in production — it hooks into the runner from the outside, not by modifying the runner. The runner spike's CLI must support additional `--import` entries for this to work (see [runner.md § In scope](runner.md)).
+This is structurally identical to how `@actharness/coverage` will work in production — it hooks into the runner from the outside, not by modifying the runner. The runner spike's CLI must support additional `--import` entries for this to work (see [runner.md § In scope](runner.md)).
 
 ## The question it answers
 
 Does a `CoverageCollector` that:
 
-- subscribes to `RunResult`s via `globalThis[Symbol.for('actspec.runSink')]` from within the runner's register hook (injected before each test file),
+- subscribes to `RunResult`s via `globalThis[Symbol.for('actharness.runSink')]` from within the runner's register hook (injected before each test file),
 - builds an Istanbul `FileCoverageData` from each result's `step.ran`, `step.if.result`, step YAML line ranges (from the CST — D2), and V8 line data from the node sandbox,
 - writes a per-worker JSON fragment to a temp dir when the worker exits, and
 - is merged by the CLI after all workers complete via `istanbul-lib-coverage`,
 
-...produce a **valid, usable Istanbul coverage report** — `text` output, `html` rendering the `action.yml` source with step and line highlights, `coverage-final.json` that `nyc merge` accepts — for a suite spanning composite, node, and workflow action tests, **running under `actspec test`**?
+...produce a **valid, usable Istanbul coverage report** — `text` output, `html` rendering the `action.yml` source with step and line highlights, `coverage-final.json` that `nyc merge` accepts — for a suite spanning composite, node, and workflow action tests, **running under `actharness test`**?
 
 ## Hypotheses to prove
 
 - **H1 — Istanbul-from-YAML map is valid.** A `FileCoverageData` with YAML line ranges as statements and `if:` outcomes as branches is accepted by `istanbul-lib-coverage` without errors, and `coverage-final.json` passes `nyc merge`.
 - **H2 — HTML reporter renders `action.yml`.** The Istanbul HTML reporter produces output for the YAML "source file" — at minimum: the filename, covered/uncovered step counts, and highlighted YAML lines. Imperfect rendering counts as ✅ if the map is valid; a crash or blank page is ❌.
-- **H3 — Disk-first fragment pattern works under `actspec test`.** Each worker writes a fragment; the CLI merges them after all workers finish; fragment files are present and readable; merged report reflects all workers.
+- **H3 — Disk-first fragment pattern works under `actharness test`.** Each worker writes a fragment; the CLI merges them after all workers finish; fragment files are present and readable; merged report reflects all workers.
 - **H4 — `registerRunListener` fires within `node:test` workers.** The listener registered via the runner's register hook is notified for every `run()` call in that worker's test file. No runs are silently dropped.
 - **H5 — Parallel safety.** Two test files (separate workers) produce two fragments; merging them yields combined coverage with no double-counting and no missing signal.
 - **H6 — Threshold enforcement.** A suite with `thresholds: { ifBranches: 100 }` where only one branch direction is exercised exits non-zero. The same suite with both directions exercised exits zero.
@@ -78,13 +78,13 @@ Does a `CoverageCollector` that:
 - Bash line coverage (kcov/bashcov — opt-in, shell-dependent).
 - Full Istanbul reporter set beyond `text`/`html`/`json`.
 - Input/default coverage metric (follows the same Istanbul-map pattern as steps — not a viability risk).
-- Full `@actspec/coverage` package build (dual ESM/CJS, API Extractor, publication).
+- Full `@actharness/coverage` package build (dual ESM/CJS, API Extractor, publication).
 
 ## Success criteria (the spike's gate)
 
 1. **Istanbul map is valid** — `istanbul-lib-coverage` accepts the `FileCoverageData` without throwing; `nyc merge` on `coverage-final.json` exits zero.
 2. **HTML renders** — `coverage/index.html` is produced and contains the `action.yml` filename and covered/uncovered indicators. Crash or blank output is a gate failure.
-3. **Runner integration works** — the disk-first/fragment/merge pattern works under `actspec test` (`node:test`). The CLI manages the full lifecycle without any user-facing config.
+3. **Runner integration works** — the disk-first/fragment/merge pattern works under `actharness test` (`node:test`). The CLI manages the full lifecycle without any user-facing config.
 4. **Listener fires** — `getCoverage().total.steps.covered > 0` after `run()` is called in a worker.
 5. **Parallel merge is complete** — two test files produce two fragment files; the merged report reflects both.
 6. **Threshold failure is observable** — a suite with `thresholds: { ifBranches: 100 }` and one branch direction unexercised exits non-zero.
@@ -118,15 +118,15 @@ Findings are written to [`specs/spikes/coverage-findings.md`](coverage-findings.
 5. **JS line coverage assessment** — how is V8 data extracted from the worker thread? Does it fold cleanly into the fragment? What does the HTML report look like for a JS file covered from inside a worker?
 6. **Job coverage assessment** — how are jobs represented in the Istanbul map alongside steps? Is the `text`/`html` output meaningful? Is there a collision risk in statement IDs?
 7. **`if:`-branch granularity verdict** — is step-level `if:` (true/false) sufficient for meaningful coverage signal? Is the absence of expression sub-branches a visible gap in the report?
-8. **Proposed changes** — table of any design changes needed before building `@actspec/coverage`: `change`, `coverage.md / API.md / DECISIONS.md section`, `why`, `priority`.
+8. **Proposed changes** — table of any design changes needed before building `@actharness/coverage`: `change`, `coverage.md / API.md / DECISIONS.md section`, `why`, `priority`.
 
 ## Exit — what we decide after
 
-- **If all criteria met, no design gaps:** the spike's `CoverageCollector`, fragment writer, and merge script are promoted as the starting point for `@actspec/coverage`. The design is confirmed as-is.
-- **If Istanbul-from-YAML produces an invalid or unusable map (H1/H2 fail):** escalate — the Istanbul-based approach (D19) may need to change — before any `@actspec/coverage` work begins.
-- **If the disk-first/fragment pattern fails under `actspec test` (H3 fails):** investigate alternatives (IPC-based fragment transfer via `parentPort`, shared memory) and record findings before building.
-- **If `registerRunListener` doesn't fire in `node:test` workers (H4 fails):** the hook design in D1 is wrong for `node:test` — record what wiring is actually needed and update [core.md](../modules/core.md) and [DECISIONS.md D1](../../docs/DECISIONS.md#d1--coverage-observes-runs-via-a-global-run-sink) before building `@actspec/core`.
-- **If JS line coverage cannot be extracted from `worker_threads` without sandbox changes (H8 fails):** record the required sandbox change and update [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) and the node executor design before building `@actspec/node`.
+- **If all criteria met, no design gaps:** the spike's `CoverageCollector`, fragment writer, and merge script are promoted as the starting point for `@actharness/coverage`. The design is confirmed as-is.
+- **If Istanbul-from-YAML produces an invalid or unusable map (H1/H2 fail):** escalate — the Istanbul-based approach (D19) may need to change — before any `@actharness/coverage` work begins.
+- **If the disk-first/fragment pattern fails under `actharness test` (H3 fails):** investigate alternatives (IPC-based fragment transfer via `parentPort`, shared memory) and record findings before building.
+- **If `registerRunListener` doesn't fire in `node:test` workers (H4 fails):** the hook design in D1 is wrong for `node:test` — record what wiring is actually needed and update [core.md](../modules/core.md) and [DECISIONS.md D1](../../docs/DECISIONS.md#d1--coverage-observes-runs-via-a-global-run-sink) before building `@actharness/core`.
+- **If JS line coverage cannot be extracted from `worker_threads` without sandbox changes (H8 fails):** record the required sandbox change and update [ARCHITECTURE → Sandboxes](../../docs/ARCHITECTURE.md#sandboxes) and the node executor design before building `@actharness/node`.
 - **If job coverage produces a malformed map or collides with step coverage (H9 fails):** record the required Istanbul-map schema change and update [coverage.md](../modules/coverage.md) and [D19](../../docs/DECISIONS.md#d19--istanbul-coverage-map-representation) before building.
 
 ## References

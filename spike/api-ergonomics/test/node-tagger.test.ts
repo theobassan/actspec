@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 import type { Action } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,7 +15,7 @@ describe('node-tagger', () => {
   let action: Action;
 
   beforeEach(() => {
-    action = actspec(FIXTURE);
+    action = actharness(FIXTURE);
   });
 
   // ── H2: RunResult type-agnostic (GITHUB_OUTPUT → result.outputs) ────────────
@@ -25,7 +25,7 @@ describe('node-tagger', () => {
     // exactly like a composite action's outputs.<name>.value.
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'main' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v1.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v1.0.0' },
     });
 
     const result = await action.run({
@@ -43,7 +43,7 @@ describe('node-tagger', () => {
   test('produces three StepResults in pre/main/post order (H6)', async () => {
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'main' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v1.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v1.0.0' },
     });
 
     const result = await action.run({
@@ -62,7 +62,7 @@ describe('node-tagger', () => {
   test('pre: phase runs and reports success (probe #6)', async () => {
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'main' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v1.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v1.0.0' },
     });
 
     const result = await action.run({
@@ -80,7 +80,7 @@ describe('node-tagger', () => {
   test('GITHUB_STATE threading: post: phase reads state written by pre:', async () => {
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'main' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v1.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v1.0.0' },
     });
 
     const result = await action.run({
@@ -108,7 +108,7 @@ describe('node-tagger', () => {
     // mockGitHubApi() for Octokit calls
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'develop' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v2.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v2.0.0' },
     });
 
     const result = await action.run({
@@ -130,7 +130,7 @@ describe('node-tagger', () => {
 
     action.mockGitHubApi({
       'GET /repos/{owner}/{repo}': { default_branch: 'main' },
-      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actspec/test-repo/git/refs/tags/v1.0.0' },
+      'POST /repos/{owner}/{repo}/git/refs': { url: 'https://api.github.com/repos/actharness/test-repo/git/refs/tags/v1.0.0' },
     });
 
     const result = await action.run({

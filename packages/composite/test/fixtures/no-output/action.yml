@@ -1,0 +1,8 @@
+name: No Output
+description: Composite action with no outputs field (covers outputs ?? {} branch)
+runs:
+  using: composite
+  steps:
+    - name: say hi
+      shell: bash
+      run: echo hi

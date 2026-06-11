@@ -138,7 +138,7 @@ function spawnWorker(
     const worker = new Worker(BOOTSTRAP, {
       workerData: { entrypoint, env, mockRoutes },
       env: { ...(process.env as Record<string, string>) },
-      // Explicit execArgv: only tsx so the .ts bootstrap loads; omit actspec's
+      // Explicit execArgv: only tsx so the .ts bootstrap loads; omit actharness's
       // --import register.ts / coverage-register.ts which are for test files only.
       execArgv: ['--import', 'tsx/esm'],
       stdout: true,

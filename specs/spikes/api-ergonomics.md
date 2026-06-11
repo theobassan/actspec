@@ -29,7 +29,7 @@ When a real developer implements minimal executors and writes ~20 tests for loca
 The unified-surface promise is: *"no breaking changes to `mock`/`run`/`expect`"*. Breaking it later means:
 
 - Published consumers hit a breaking change.
-- The matchers package (`@actspec/matchers`) has already been shipped.
+- The matchers package (`@actharness/matchers`) has already been shipped.
 - The API Extractor snapshot is already committed.
 
 Friction found now is a spec edit. Friction found after the full codebase exists is a breaking change and a rewrite of already-published consumers.
@@ -59,7 +59,7 @@ Friction found now is a spec edit. Friction found after the full codebase exists
 - Matrix expansion in the WorkflowRunner (no `strategy.matrix`).
 - Coverage reports.
 - Performance or error-message quality.
-- Full `@actspec/*` package build (dual ESM/CJS, API Extractor snapshots, publication).
+- Full `@actharness/*` package build (dual ESM/CJS, API Extractor snapshots, publication).
 
 ## Success criteria (the spike's gate)
 
@@ -116,7 +116,7 @@ Findings are written to [`specs/spikes/api-ergonomics-findings.md`](api-ergonomi
 
 - **If no blocking friction:** the spike's executors and tests are promoted as the starting point for the main codebase. API.md is confirmed as-is.
 - **If blocking friction is found:** update API.md (and the affected module spec) before promoting the spike's code — the spec is the source of truth, not the code.
-- **If matchers gaps are found** (missing matcher, awkward shape): update [specs/modules/matchers.md](../modules/matchers.md) and [API.md §6](../../docs/API.md) before building `@actspec/matchers`.
+- **If matchers gaps are found** (missing matcher, awkward shape): update [specs/modules/matchers.md](../modules/matchers.md) and [API.md §6](../../docs/API.md) before building `@actharness/matchers`.
 - **If `RunResult`/`StepResult` shape changes are needed:** update [API.md §4](../../docs/API.md) and all module specs that produce results. This is the most expensive change — a shape change here propagates across all executors.
 
 ## References

@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach } from 'vitest';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 import type { Action } from '../src/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,7 @@ describe('composite-setup', () => {
 
   beforeEach(() => {
     // New Action handle per test — registry is per-instance (no cross-test contamination).
-    action = actspec(FIXTURE);
+    action = actharness(FIXTURE);
   });
 
   // ── Happy path ──────────────────────────────────────────────────────────────

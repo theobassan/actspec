@@ -1,6 +1,6 @@
 name: Release
 description: Fixture exercising a mocked `uses:`, an `if:` skip, and `$GITHUB_ENV` threading.
-author: actspec
+author: actharness
 
 inputs:
   dry-run:

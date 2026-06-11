@@ -9,7 +9,7 @@
     "outDir": "./dist",
     "rootDir": ".",
     "paths": {
-      "@actspec/expressions": ["../expressions/src/index.ts"]
+      "@actharness/expressions": ["../expressions/src/index.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*", "../runner/src/globals.d.ts"]

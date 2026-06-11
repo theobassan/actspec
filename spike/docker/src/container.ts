@@ -5,7 +5,7 @@ import { spawn } from 'child_process';
 import { createHash } from 'crypto';
 import { readFileSync, existsSync, chmodSync, rmSync } from 'fs';
 import { join, resolve as resolvePath } from 'path';
-import { evaluateTemplate } from '@actspec/expressions';
+import { evaluateTemplate } from '@actharness/expressions';
 import {
   allocateProtocolFiles,
   parseProtocolFile,
@@ -66,7 +66,7 @@ async function ensureImage(source: ImageSource): Promise<string> {
   if (source.kind === 'registry') return source.image;
   const cached = imageCache.get(source.cacheKey);
   if (cached) return cached;  // H4: cache hit — skip rebuild
-  const tag = `actspec-docker-spike-${source.cacheKey}`;
+  const tag = `actharness-docker-spike-${source.cacheKey}`;
   const { exitCode, stderr } = await spawnDocker(['build', '-t', tag, source.contextDir]);
   if (exitCode !== 0) throw new Error(`docker build failed:\n${stderr}`);
   imageCache.set(source.cacheKey, tag);

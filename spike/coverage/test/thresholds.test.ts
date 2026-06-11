@@ -5,7 +5,7 @@ import { readFileSync } from 'fs';
 import { createCoverageMap } from '../src/istanbul-compat.js';
 import { buildActionCoverage, updateActionCoverage } from '../src/istanbul-map.js';
 import { checkThresholds } from '../src/thresholds.js';
-import { actspec } from '../src/index.js';
+import { actharness } from '../src/index.js';
 
 const FIXTURES = resolve(process.cwd(), 'fixtures');
 
@@ -15,7 +15,7 @@ describe('H7 / Probe #10 — threshold enforcement', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     await action.run({ inputs: { mode: 'full' } }).then(r => updateActionCoverage(coverage, meta, r));
     await action.run({ inputs: { mode: 'quick', 'skip-notify': 'true' } }).then(r => updateActionCoverage(coverage, meta, r));
 
@@ -32,7 +32,7 @@ describe('H7 / Probe #10 — threshold enforcement', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     await action.run({ inputs: { env: 'production' } }).then(r => updateActionCoverage(coverage, meta, r));
     await action.run({ inputs: { env: 'production' } }).then(r => updateActionCoverage(coverage, meta, r));
 
@@ -50,7 +50,7 @@ describe('H7 / Probe #10 — threshold enforcement', () => {
     const yamlSource = readFileSync(sourceFile, 'utf8');
     const { coverage, meta } = buildActionCoverage(sourceFile, yamlSource);
 
-    const action = actspec(sourceFile);
+    const action = actharness(sourceFile);
     await action.run({ inputs: { env: 'production' } }).then(r => updateActionCoverage(coverage, meta, r));
 
     const map = createCoverageMap({});

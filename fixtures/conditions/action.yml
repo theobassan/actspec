@@ -1,0 +1,54 @@
+name: Conditions Demo
+description: "Shows matrix context, jobStatus, and status functions in if: conditions."
+author: actharness
+
+inputs:
+  should-fail:
+    description: When true, triggers a step failure to test failure() condition
+    default: "false"
+  never-used:
+    description: never used, just to test that it doesn't run
+    default: "false"
+  never-used-no-default:
+    description: never used, just to test that it doesn't run
+
+outputs:
+  never-used:
+    description: never used, just to test that it doesn't run
+    value: ${{ steps.read-matrix.outputs.never-used }}
+  env-label:
+    description: The matrix environment value
+    value: ${{ steps.read-matrix.outputs.env-label }}
+
+runs:
+  using: composite
+  steps:
+    - id: read-matrix
+      shell: bash
+      run: |
+        echo "env-label=${{ matrix.environment }}" >> "$GITHUB_OUTPUT"
+
+    - id: trigger-failure
+      if: ${{ inputs.should-fail == 'true' }}
+      shell: bash
+      run: exit 1
+
+    - id: on-failure
+      if: ${{ failure() }}
+      shell: bash
+      run: echo "failure handler ran"
+
+    - id: on-cancelled
+      if: ${{ cancelled() }}
+      shell: bash
+      run: echo "cancellation handler ran"
+
+    - id: never-runs
+      if: false
+      shell: bash
+      run: echo "never handler ran"
+
+    - id: always-runs
+      if: ${{ always() }}
+      shell: bash
+      run: echo "always handler ran"
